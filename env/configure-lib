@@ -20,8 +20,8 @@
 #
 MACHINE=linux_intel
 MARCH=mpi
-INSTITUTION=nml
-USERNAME=baram
+INSTITUTION=snu
+USERNAME=sul
 #
 #
 #  If special options for compilation is needed, change below
