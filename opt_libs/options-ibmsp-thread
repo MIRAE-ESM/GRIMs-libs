@@ -1,0 +1,41 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP=/usr/ccs/lib/cpp
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options
+#
+MODUL="-qmoddir=../include -I../include"
+F77=xlf90_r
+FORT_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -bmaxdata:2040000000 -bmaxstack:2040000000 -qsuffix=f=f90 ${MODUL)"
+LOAD_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -bmaxdata:2040000000 -bmaxstack:2040000000"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=xlf90
+UTIL_FORT_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -bmaxdata:2040000000 -bmaxstack:2040000000 -qsuffix=f=f90 ${MODUL}"
+UTIL_LOAD_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -bmaxdata:2040000000 -bmaxstack:2040000000"
+#
+W3LIB_F77=xlf90
+W3LIB_FORT_FLAGS="-qsuffix=f=f90"
+W3LIB_LOAD_FLAGS=
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=xlf90
+BFLIB_FORT_FLAGS="-qsuffix=f=f90"
+BFLIB_LOAD_FLAGS=
+#
+MTNSUBMIT=

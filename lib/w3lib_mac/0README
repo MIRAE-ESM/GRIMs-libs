@@ -1,0 +1,7 @@
+This w3lib source codes were copied from w3lib_ibmsp, with modifications of:
+
+1) remove aea.o dependence from makefile.in. Absoft PRO fortran doesn't like
+   constant values specified to a character varaiable.
+
+2) swap32.f was copied from w3lib_mac. util/util_mac/ibm2ie3.x require this in 
+   w3lib.a

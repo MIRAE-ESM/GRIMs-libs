@@ -1,0 +1,47 @@
+if [ $# -ne 2 ] ; then
+	echo 'Usage: ibm2ie3 infile outfile'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8 
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+in=$1
+if [ ! -s $in ] ; then
+	echo "$in:  No such file"
+	echo "`date` $0: $in.  No such file." >>ERROR.out
+	exit 8
+fi
+out=$2
+#
+if [ @MACHINE@ = cray -o @MACHINE@ = t90 -o @MACHINE@ = t3e ] ; then
+  assign -R
+fi
+if [ @MACHINE@ = x1e ] ; then
+        . /opt/modules/modules/init/sh
+        module load open pbs PrgEnv
+        FILENV=filenv.$$
+        export FILENV
+        assign -R
+else
+        rm -f @FTNID@[0-9]* 2>/dev/null
+fi
+
+@FTASS@ $in @FTNID@11
+#ln -fs $out @FTNID@51
+echo ' &namfl' >naml$$.data
+echo " FNAME='$in'" >>naml$$.data
+echo ' &END' >>naml$$.data
+#
+@RUNENV@ $ETC_DIR/ibm2ie3.x <naml$$.data 1>stderr$$.ibm2ie3 2>&1
+mv @FTNID@51 $out
+if [ $? -ne 0 ] ; then
+	echo " $0: Execution failed"
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+rm naml$$.data stderr$$.ibm2ie3

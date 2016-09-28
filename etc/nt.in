@@ -1,0 +1,28 @@
+if [ x$2 = x ] 
+then
+  echo 'if a1 is newer than a2 returns zero, if not returns 1'
+  echo 'nt a1 a2'
+  echo 'a1,a2 .. filenames'
+  exit
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+if [ @MACHINE@ != dec ] ; then
+	if [ $1 -nt $2 ] ; then
+		echo 0
+	else
+		echo 1
+	fi
+else
+	new=`ls -t $1 $2 | sed -n 1p`
+	if [ $new = $1 ] ; then
+		echo 0
+	else
+		echo 1
+	fi
+fi

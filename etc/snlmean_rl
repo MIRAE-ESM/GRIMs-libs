@@ -1,0 +1,22 @@
+pwd=`pwd`
+file=$1
+
+for file in pgb.anl flx.ft06
+do
+	ls ????12/prod_v02.A.vsn01/avrg/$file.????12.avrg.grib \
+		????0[1-2]/prod_v02.A.vsn01/avrg/$file.????0[1-2].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_djf.dat
+	/home/kana/libs/etc/grmean -s grmean_djf.dat -o $file.djf.avrg.grib
+	ls ????0[3-5]/prod_v02.A.vsn01/avrg/$file.????0[3-5].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_mam.dat
+	/home/kana/libs/etc/grmean -s grmean_mam.dat -o $file.mam.avrg.grib
+	ls ????0[6-8]/prod_v02.A.vsn01/avrg/$file.????0[6-8].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_jja.dat
+	/home/kana/libs/etc/grmean -s grmean_jja.dat -o $file.jja.avrg.grib
+	ls ????09/prod_v02.A.vsn01/avrg/$file.????09.avrg.grib \
+			????1[0-1]/prod_v02.A.vsn01/avrg/$file.????1[0-1].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_son.dat
+	/home/kana/libs/etc/grmean -s grmean_son.dat -o $file.son.avrg.grib
+done
+
+

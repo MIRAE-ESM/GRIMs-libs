@@ -1,0 +1,11 @@
+for file in `ls [A-Z]*`
+do
+	echo $file
+	sfile=`echo $file | cut -d '.' -f1 | tr '[A-Z]' '[a-z]'`
+	echo $sfile
+	echo "mv $file $sfile.fp ? y/n ==>\c"
+	read yn
+	if [ "$yn" = y ] ; then
+		mv $file $sfile.fp
+	fi
+done

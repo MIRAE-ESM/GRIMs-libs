@@ -1,0 +1,3718 @@
+   SUBROUTINE W3FI63(MSGA,KPDS,KGDS,KBMS,DATA,KPTR,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI63        UNPK GRIB FIELD TO GRIB GRID
+!   PRGMMR: FARLEY           ORG: NMC421      DATE:94-11-22
+!
+! ABSTRACT: UNPACK A GRIB (EDITION 1) FIELD TO THE EXACT GRID
+!   SPECIFIED IN THE GRIB MESSAGE, ISOLATE THE BIT MAP, AND MAKE
+!   THE VALUES OF THE PRODUCT DESCRIPTON SECTION (PDS) AND THE
+!   GRID DESCRIPTION SECTION (GDS) AVAILABLE IN RETURN ARRAYS.
+!
+!   WHEN DECODING IS COMPLETED, DATA AT EACH GRID POINT HAS BEEN
+!          RETURNED IN THE UNITS SPECIFIED IN THE GRIB MANUAL.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!   91-11-12  CAVANAUGH   MODIFIED SIZE OF ECMWF GRIDS 5-8
+!   91-12-22  CAVANAUGH   CORRECTED PROCESSING OF MERCATOR PROJECTIONS
+!                         IN GRID DEFINITION SECTION (GDS) IN
+!                         ROUTINE FI633
+!   92-08-05  CAVANAUGH   CORRECTED MAXIMUM GRID SIZE TO ALLOW FOR
+!                         ONE DEGREE BY ONE DEGREE GLOBAL GRIDS
+!   92-08-27  CAVANAUGH   CORRECTED TYPO ERROR, ADDED CODE TO COMPARE
+!                         TOTAL BYTE SIZE FROM SECTION 0 WITH SUM OF
+!                         SECTION SIZES.
+!   92-10-21  CAVANAUGH   CORRECTIONS WERE MADE (IN FI634) TO REDUCE
+!                         PROCESSING TIME FOR INTERNATIONAL GRIDS.
+!                         REMOVED A TYPOGRAPHICAL ERROR IN FI635.
+!   93-01-07  CAVANAUGH   CORRECTIONS WERE MADE (IN FI635) TO
+!                         FACILITATE USE OF THESE ROUTINES ON A PC.
+!                         A TYPOGRAPHICAL ERROR WAS ALSO CORRECTED
+!   93-01-13  CAVANAUGH   CORRECTIONS WERE MADE (IN FI632) TO
+!                         PROPERLY HANDLE CONDITION WHEN
+!                         TIME RANGE INDICATOR = 10.
+!                         ADDED U.S.GRID 87.
+!   93-02-04  CAVANAUGH   ADDED U.S.GRIDS 85 AND 86
+!   93-02-26  CAVANAUGH   ADDED GRIDS 2, 3, 37 THRU 44,AND
+!                         GRIDS 55, 56, 90, 91, 92, AND 93 TO
+!                         LIST OF U.S. GRIDS.
+!   93-04-07  CAVANAUGH   ADDED GRIDS 67 THRU 77 TO
+!                         LIST OF U.S. GRIDS.
+!   93-04-20  CAVANAUGH   INCREASED MAX SIZE TO ACCOMODATE
+!                         GAUSSIAN GRIDS.
+!   93-05-26  CAVANAUGH   CORRECTED GRID RANGE SELECTION IN FI634
+!                         FOR RANGES 67-71 & 75-77
+!   93-06-08  CAVANAUGH   CORRECTED FI635 TO ACCEPT GRIB MESSAGES
+!                         WITH SECOND ORDER PACKING. ADDED ROUTINE FI636
+!                         TO PROCESS MESSAGES WITH SECOND ORDER PACKING.
+!   93-09-22  CAVANAUGH   MODIFIED TO EXTRACT SUB-CENTER NUMBER FROM
+!                         PDS BYTE 26
+!   93-10-13  CAVANAUGH   MODIFIED FI634 TO CORRECT GRID SIZES FOR
+!                         GRIDS 204 AND 208
+!   93-10-14  CAVANAUGH   INCREASED SIZE OF KGDS TO INCLUDE ENTRIES FOR
+!                         NUMBER OF POINTS IN GRID AND NUMBER OF WORDS
+!                         IN EACH ROW
+!   93-12-08  CAVANAUGH   CORRECTED TEST FOR EDITION NUMBER INSTEAD
+!                         OF VERSION NUMBER
+!   93-12-15  CAVANAUGH   MODIFIED SECOND ORDER POINTERS TO FIRST ORDER
+!                         VALUES AND SECOND ORDER VALUES CORRECTLY
+!                         IN ROUTINE FI636
+!   94-03-02  CAVANAUGH   ADDED CALL TO W3FI83 WITHIN DECODER.  USER
+!                         NO LONGER NEEDS TO MAKE CALL TO THIS ROUTINE
+!   94-04-22  CAVANAUGH   MODIFIED FI635, FI636 TO PROCESS ROW BY ROW
+!                         SECOND ORDER PACKING, ADDED SCALING CORRECTION
+!                         TO FI635, AND CORRECTED TYPOGRAPHICAL ERRORS
+!                         IN COMMENT FIELDS IN FI634
+!   94-05-17  CAVANAUGH   CORRECTED ERROR IN FI633 TO EXTRACT RESOLUTION
+!                         FOR LAMBERT-CONFORMAL GRIDS. ADDED CLARIFYING
+!                         INFORMATION TO DOCBLOCK ENTRIES
+!   94-05-25  CAVANAUGH   ADDED CODE TO PROCESS COLUMN BY COLUMN AS WELL
+!                         AS ROW BY ROW ORDERING OF SECOND ORDER DATA
+!   94-06-27  CAVANAUGH   ADDED PROCESSING FOR GRIDS 45, 94 AND 95.
+!                         INCLUDES CONSTRUCTION OF SECOND ORDER BIT MAPS
+!                         FOR THINNED GRIDS IN FI636.
+!   94-07-08  CAVANAUGH   COMMENTED OUT PRINT OUTS USED FOR DEBUGGING
+!   94-09-08  CAVANAUGH   ADDED GRIDS 220, 221, 223 FOR FNOC
+!   94-11-10  FARLEY      INCREASED MXSIZE FROM 72960 TO 260000
+!                         FOR .5 DEGREE SST ANALYSIS FIELDS
+!   94-12-06  R.E.JONES   CHANGES IN FI632 FOR PDS GREATER THAN 28
+!   95-02-14  R.E.JONES   CORRECT IN FI633 FOR NAVY WAFS GRIB
+!   95-03-20  M.BALDWIN   FI633 QUICK AN DIRTY FIX MODIFICATION TO GET
+!                         DATA REP TYPE [KGDS(1)] 201 AND 202 TO WORK.
+!   95-04-10  E.ROGERS    ADDED GRIDS 96 AND 97 FOR ETA MODEL IN FI634.
+!   95-04-26  R.E.JONES   FI636 CORECTION FOR 2ND ORDER COMPLEX 
+!                         UNPACKING. 
+!   95-05-19  R.E.JONES   ADDED GRID 215, 20 KM AWIPS GRID 
+!   95-07-06  R.E.JONES   ADDED GAUSSIAN T62, T126 GRIDS 98, 126 
+!
+! USAGE:    CALL W3FI63(MSGA,KPDS,KGDS,KBMS,DATA,KPTR,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA     - GRIB FIELD - "GRIB" THRU "7777"   CHAR*1
+!                   (MESSAGE CAN BE PRECEDED BY JUNK CHARS)
+!
+!   OUTPUT ARGUMENT LIST:
+!     DATA     - ARRAY CONTAINING DATA ELEMENTS
+!     KPDS     - ARRAY CONTAINING PDS ELEMENTS.  (EDITION 1)
+!          (1)   - ID OF CENTER
+!          (2)   - GENERATING PROCESS ID NUMBER
+!          (3)   - GRID DEFINITION
+!          (4)   - GDS/BMS FLAG (RIGHT ADJ COPY OF OCTET 8)
+!          (5)   - INDICATOR OF PARAMETER
+!          (6)   - TYPE OF LEVEL
+!          (7)   - HEIGHT/PRESSURE , ETC OF LEVEL
+!          (8)   - YEAR INCLUDING (CENTURY-1)
+!          (9)   - MONTH OF YEAR
+!          (10)  - DAY OF MONTH
+!          (11)  - HOUR OF DAY
+!          (12)  - MINUTE OF HOUR
+!          (13)  - INDICATOR OF FORECAST TIME UNIT
+!          (14)  - TIME RANGE 1
+!          (15)  - TIME RANGE 2
+!          (16)  - TIME RANGE FLAG
+!          (17)  - NUMBER INCLUDED IN AVERAGE
+!          (18)  - VERSION NR OF GRIB SPECIFICATION
+!          (19)  - VERSION NR OF PARAMETER TABLE
+!          (20)  - NR MISSING FROM AVERAGE/ACCUMULATION
+!          (21)  - CENTURY OF REFERENCE TIME OF DATA
+!          (22)  - UNITS DECIMAL SCALE FACTOR
+!          (23)  - SUBCENTER NUMBER
+!          (24)  - PDS BYTE 29, FOR NMC ENSEMBLE PRODUCTS
+!                  128 IF FORECAST FIELD ERROR
+!                   64 IF BIAS CORRECTED FCST FIELD
+!                   32 IF SMOOTHED FIELD
+!                  WARNING: CAN BE COMBINATION OF MORE THAN 1
+!          (25)  - PDS BYTE 30, NOT USED
+!       (26-35)  - RESERVED
+!       (36-N)   - CONSECUTIVE BYTES EXTRACTED FROM PROGRAM
+!                  DEFINITION SECTION (PDS) OF GRIB MESSAGE
+!     KGDS     - ARRAY CONTAINING GDS ELEMENTS.
+!          (1)   - DATA REPRESENTATION TYPE
+!          (19)  - NUMBER OF VERTICAL COORDINATE PARAMETERS
+!          (20)  - OCTET NUMBER OF THE LIST OF VERTICAL COORDINATE
+!                  PARAMETERS
+!                  OR
+!                  OCTET NUMBER OF THE LIST OF NUMBERS OF POINTS
+!                  IN EACH ROW
+!                  OR
+!                  255 IF NEITHER ARE PRESENT
+!          (21)  - FOR GRIDS WITH PL, NUMBER OF POINTS IN GRID
+!          (22)  - NUMBER OF WORDS IN EACH ROW
+!       LATITUDE/LONGITUDE GRIDS
+!          (2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!          (3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LA(2) LATITUDE OF EXTREME POINT
+!          (8)   - LO(2) LONGITUDE OF EXTREME POINT
+!          (9)   - DI LATITUDINAL DIRECTION OF INCREMENT
+!          (10)  - DJ LONGITUDINAL DIRECTION INCREMENT
+!          (11)  - SCANNING MODE FLAG (RIGHT ADJ COPY OF OCTET 28)
+!       GAUSSIAN  GRIDS
+!          (2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!          (3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG  (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LA(2) LATITUDE OF EXTREME POINT
+!          (8)   - LO(2) LONGITUDE OF EXTREME POINT
+!          (9)   - DI LATITUDINAL DIRECTION OF INCREMENT
+!          (10)  - N - NR OF CIRCLES POLE TO EQUATOR
+!          (11)  - SCANNING MODE FLAG (RIGHT ADJ COPY OF OCTET 28)
+!          (12)  - NV - NR OF VERT COORD PARAMETERS
+!          (13)  - PV - OCTET NR OF LIST OF VERT COORD PARAMETERS
+!                             OR
+!                  PL - LOCATION OF THE LIST OF NUMBERS OF POINTS IN
+!                       EACH ROW (IF NO VERT COORD PARAMETERS
+!                       ARE PRESENT
+!                             OR
+!                  255 IF NEITHER ARE PRESENT
+!       POLAR STEREOGRAPHIC GRIDS
+!          (2)   - N(I) NR POINTS ALONG LAT CIRCLE
+!          (3)   - N(J) NR POINTS ALONG LON CIRCLE
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG  (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LOV GRID ORIENTATION
+!          (8)   - DX - X DIRECTION INCREMENT
+!          (9)   - DY - Y DIRECTION INCREMENT
+!          (10)  - PROJECTION CENTER FLAG
+!          (11)  - SCANNING MODE (RIGHT ADJ COPY OF OCTET 28)
+!       SPHERICAL HARMONIC COEFFICIENTS
+!          (2)   - J PENTAGONAL RESOLUTION PARAMETER
+!          (3)   - K      "          "         "
+!          (4)   - M      "          "         "
+!          (5)   - REPRESENTATION TYPE
+!          (6)   - COEFFICIENT STORAGE MODE
+!       MERCATOR GRIDS
+!          (2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!          (3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LA(2) LATITUDE OF LAST GRID POINT
+!          (8)   - LO(2) LONGITUDE OF LAST GRID POINT
+!          (9)   - LATIT - LATITUDE OF PROJECTION INTERSECTION
+!          (10)  - RESERVED
+!          (11)  - SCANNING MODE FLAG (RIGHT ADJ COPY OF OCTET 28)
+!          (12)  - LONGITUDINAL DIR GRID LENGTH
+!          (13)  - LATITUDINAL DIR GRID LENGTH
+!       LAMBERT CONFORMAL GRIDS
+!          (2)   - NX NR POINTS ALONG X-AXIS
+!          (3)   - NY NR POINTS ALONG Y-AXIS
+!          (4)   - LA1 LAT OF ORIGIN (LOWER LEFT)
+!          (5)   - LO1 LON OF ORIGIN (LOWER LEFT)
+!          (6)   - RESOLUTION (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LOV - ORIENTATION OF GRID
+!          (8)   - DX - X-DIR INCREMENT
+!          (9)   - DY - Y-DIR INCREMENT
+!          (10)  - PROJECTION CENTER FLAG
+!          (11)  - SCANNING MODE FLAG (RIGHT ADJ COPY OF OCTET 28)
+!          (12)  - LATIN 1 - FIRST LAT FROM POLE OF SECANT CONE INTER
+!          (13)  - LATIN 2 - SECOND LAT FROM POLE OF SECANT CONE INTER
+!     KBMS       - BITMAP DESCRIBING LOCATION OF OUTPUT ELEMENTS.
+!                            (ALWAYS CONSTRUCTED)
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG (COPY OF BMS OCTETS 5,6)
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS (RIGHT ADJ COPY OF OCTET 4)
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!     KRET       - FLAG INDICATING QUALITY OF COMPLETION
+!
+! REMARKS: WHEN DECODING IS COMPLETED, DATA AT EACH GRID POINT HAS BEEN
+!          RETURNED IN THE UNITS SPECIFIED IN THE GRIB MANUAL.
+!
+!          VALUES FOR RETURN FLAG (KRET)
+!     KRET = 0 - NORMAL RETURN, NO ERRORS
+!          = 1 - 'GRIB' NOT FOUND IN FIRST 100 CHARS
+!          = 2 - '7777' NOT IN CORRECT LOCATION
+!          = 3 - UNPACKED FIELD IS LARGER THAN 260000
+!          = 4 - GDS/ GRID NOT ONE OF CURRENTLY ACCEPTED VALUES
+!          = 5 - GRID NOT CURRENTLY AVAIL FOR CENTER INDICATED
+!          = 8 - TEMP GDS INDICATED, BUT GDS FLAG IS OFF
+!          = 9 - GDS INDICATES SIZE MISMATCH WITH STD GRID
+!          =10 - INCORRECT CENTER INDICATOR
+!          =11 - BINARY DATA SECTION (BDS) NOT COMPLETELY PROCESSED.
+!                PROGRAM IS NOT SET TO PROCESS FLAG COMBINATIONS
+!                SHOWN IN OCTETS 4 AND 14.
+!          =12 - BINARY DATA SECTION (BDS) NOT COMPLETELY PROCESSED.
+!                PROGRAM IS NOT SET TO PROCESS FLAG COMBINATIONS
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!                                                         4 AUG 1988
+!                               W3FI63
+!
+!
+!                       GRIB UNPACKING ROUTINE
+!
+!
+!       THIS ROUTINE WILL UNPACK A 'GRIB' FIELD TO THE EXACT GRID
+!  TYPE SPECIFIED IN THE MESSAGE, RETURN A BIT MAP AND MAKE THE
+!  VALUES OF THE PRODUCT DEFINITION SEC   (PDS) AND THE GRID
+!  DESCRIPTION SEC   (GDS) AVAILABLE IN RETURN ARRAYS.
+!  SEE "GRIB - THE WMO FORMAT FOR THE STORAGE OF WEATHER PRODUCT
+!  INFORMATION AND THE EXCHANGE OF WEATHER PRODUCT MESSAGES IN
+!  GRIDDED BINARY FORM" DATED JULY 1, 1988 BY JOHN D. STACKPOLE
+!  DOC, NOAA, NWS, NATIONAL METEOROLOGICAL CENTER.
+!
+!       THE CALL TO THE GRIB UNPACKING ROUTINE IS AS FOLLOWS:
+!
+!            CALL W3FI63(MSGA,KPDS,KGDS,LBMS,DATA,KPTR,KRET)
+!
+!  INPUT:
+!
+!       MSGA  = CONTAINS THE GRIB MESSAGE TO BE UNPACKED. CHARACTERS
+!               "GRIB" MAY BEGIN ANYWHERE WITHIN FIRST 100 BYTES.
+!
+!  OUTPUT:
+!
+!       KPDS(100)      INTEGER*4
+!               ARRAY TO CONTAIN THE ELEMENTS OF THE PRODUCT
+!               DEFINITION SEC  .
+!         (VERSION 1)
+!            KPDS(1)  - ID OF CENTER
+!            KPDS(2)  - MODEL IDENTIFICATION (SEE "GRIB" TABLE 1)
+!            KPDS(3)  - GRID IDENTIFICATION (SEE "GRIB" TABLE 2)
+!            KPDS(4)  - GDS/BMS FLAG
+!                           BIT       DEFINITION
+!                            25        0 - GDS OMITTED
+!                                      1 - GDS INCLUDED
+!                            26        0 - BMS OMITTED
+!                                      1 - BMS INCLUDED
+!                        NOTE:- LEFTMOST BIT = 1,
+!                               RIGHTMOST BIT = 32
+!            KPDS(5)  - INDICATOR OF PARAMETER (SEE "GRIB" TABLE 5)
+!            KPDS(6)  - TYPE OF LEVEL (SEE "GRIB" TABLES 6 & 7)
+!            KPDS(7)  - HEIGHT,PRESSURE,ETC  OF LEVEL
+!            KPDS(8)  - YEAR INCLUDING CENTURY
+!            KPDS(9)  - MONTH OF YEAR
+!            KPDS(10) - DAY OF MONTH
+!            KPDS(11) - HOUR OF DAY
+!            KPDS(12) - MINUTE OF HOUR
+!            KPDS(13) - INDICATOR OF FORECAST TIME UNIT (SEE "GRIB"
+!                       TABLE 8)
+!            KPDS(14) - TIME 1               (SEE "GRIB" TABLE 8A)
+!            KPDS(15) - TIME 2               (SEE "GRIB" TABLE 8A)
+!            KPDS(16) - TIME RANGE INDICATOR (SEE "GRIB" TABLE 8A)
+!            KPDS(17) - NUMBER INCLUDED IN AVERAGE
+!            KPDS(18) - EDITION NR OF GRIB SPECIFICATION
+!            KPDS(19) - VERSION NR OF PARAMETER TABLE
+!
+!       KGDS(13)       INTEGER*4
+!             ARRAY CONTAINING GDS ELEMENTS.
+!
+!            KGDS(1)  - DATA REPRESENTATION TYPE
+!
+!         LATITUDE/LONGITUDE GRIDS (SEE "GRIB" TABLE 10)
+!            KGDS(2)  - N(I) NUMBER OF POINTS ON LATITUDE
+!                       CIRCLE
+!            KGDS(3)  - N(J) NUMBER OF POINTS ON LONGITUDE
+!                       CIRCLE
+!            KGDS(4)  - LA(1) LATITUDE OF ORIGIN
+!            KGDS(5)  - LO(1) LONGITUDE OF ORIGIN
+!            KGDS(6)  - RESOLUTION FLAG
+!                           BIT       MEANING
+!                            25       0 - DIRECTION INCREMENTS NOT
+!                                         GIVEN
+!                                     1 - DIRECTION INCREMENTS GIVEN
+!            KGDS(7)  - LA(2) LATITUDE OF EXTREME POINT
+!            KGDS(8)  - LO(2) LONGITUDE OF EXTREME POINT
+!            KGDS(9)  - DI LATITUDINAL DIRECTION INCREMENT
+!            KGDS(10) - REGULAR LAT/LON GRID
+!                           DJ - LONGITUDINAL DIRECTION
+!                                INCREMENT
+!                       GAUSSIAN GRID
+!                           N  - NUMBER OF LATITUDE CIRCLES
+!                                BETWEEN A POLE AND THE EQUATOR
+!            KGDS(11) - SCANNING MODE FLAG
+!                           BIT       MEANING
+!                            25       0 - POINTS ALONG A LATITUDE
+!                                         SCAN FROM WEST TO EAST
+!                                     1 - POINTS ALONG A LATITUDE
+!                                         SCAN FROM EAST TO WEST
+!                            26       0 - POINTS ALONG A MERIDIAN
+!                                         SCAN FROM NORTH TO SOUTH
+!                                     1 - POINTS ALONG A MERIDIAN
+!                                         SCAN FROM SOUTH TO NORTH
+!                            27       0 - POINTS SCAN FIRST ALONG
+!                                         CIRCLES OF LATITUDE, THEN
+!                                         ALONG MERIDIANS
+!                                         (FORTRAN: (I,J))
+!                                     1 - POINTS SCAN FIRST ALONG
+!                                         MERIDIANS THEN ALONG
+!                                         CIRCLES OF LATITUDE
+!                                         (FORTRAN: (J,I))
+!
+!         POLAR STEREOGRAPHIC GRIDS  (SEE GRIB TABLE 12)
+!            KGDS(2)  - N(I) NR POINTS ALONG LAT CIRCLE
+!            KGDS(3)  - N(J) NR POINTS ALONG LON CIRCLE
+!            KGDS(4)  - LA(1) LATITUDE OF ORIGIN
+!            KGDS(5)  - LO(1) LONGITUDE OF ORIGIN
+!            KGDS(6)  - RESERVED
+!            KGDS(7)  - LOV GRID ORIENTATION
+!            KGDS(8)  - DX - X DIRECTION INCREMENT
+!            KGDS(9)  - DY - Y DIRECTION INCREMENT
+!            KGDS(10) - PROJECTION CENTER FLAG
+!            KGDS(11) - SCANNING MODE
+!
+!         SPHERICAL HARMONIC COEFFICIENTS (SEE "GRIB" TABLE 14)
+!            KGDS(2)  - J PENTAGONAL RESOLUTION PARAMETER
+!            KGDS(3)  - K PENTAGONAL RESOLUTION PARAMETER
+!            KGDS(4)  - M PENTAGONAL RESOLUTION PARAMETER
+!            KGDS(5)  - REPRESENTATION TYPE
+!            KGDS(6)  - COEFFICIENT STORAGE MODE
+!
+!       MERCATOR GRIDS
+!            KGDS(2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!            KGDS(3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!            KGDS(4)   - LA(1) LATITUDE OF ORIGIN
+!            KGDS(5)   - LO(1) LONGITUDE OF ORIGIN
+!            KGDS(6)   - RESOLUTION FLAG
+!            KGDS(7)   - LA(2) LATITUDE OF LAST GRID POINT
+!            KGDS(8)   - LO(2) LONGITUDE OF LAST GRID POINT
+!            KGDS(9)   - LATIN - LATITUDE OF PROJECTION INTERSECTION
+!            KGDS(10)  - RESERVED
+!            KGDS(11)  - SCANNING MODE FLAG
+!            KGDS(12)  - LONGITUDINAL DIR GRID LENGTH
+!            KGDS(13)  - LATITUDINAL DIR GRID LENGTH
+!       LAMBERT CONFORMAL GRIDS
+!            KGDS(2)   - NX NR POINTS ALONG X-AXIS
+!            KGDS(3)   - NY NR POINTS ALONG Y-AXIS
+!            KGDS(4)   - LA1 LAT OF ORIGIN (LOWER LEFT)
+!            KGDS(5)   - LO1 LON OF ORIGIN (LOWER LEFT)
+!            KGDS(6)   - RESOLUTION (RIGHT ADJ COPY OF OCTET 17)
+!            KGDS(7)   - LOV - ORIENTATION OF GRID
+!            KGDS(8)   - DX - X-DIR INCREMENT
+!            KGDS(9)   - DY - Y-DIR INCREMENT
+!            KGDS(10)  - PROJECTION CENTER FLAG
+!            KGDS(11)  - SCANNING MODE FLAG
+!            KGDS(12)  - LATIN 1 - FIRST LAT FROM POLE OF
+!                        SECANT CONE INTERSECTION
+!            KGDS(13)  - LATIN 2 - SECOND LAT FROM POLE OF
+!                        SECANT CONE INTERSECTION
+!
+!       LBMS(260000)    LOGICAL
+!               ARRAY TO CONTAIN THE BIT MAP DESCRIBING THE
+!               PLACEMENT OF DATA IN THE OUTPUT ARRAY.  IF A
+!               BIT MAP IS NOT INCLUDED IN THE SOURCE MESSAGE,
+!               ONE WILL BE GENERATED AUTOMATICALLY BY THE
+!               UNPACKING ROUTINE.
+!
+!
+!       DATA(260000)    REAL*4
+!               THIS ARRAY WILL CONTAIN THE UNPACKED DATA POINTS.
+!
+!                      NOTE:- 65160 IS MAXIMUN FIELD SIZE ALLOWABLE
+!
+!       KPTR(10)       INTEGER*4
+!               ARRAY CONTAINING STORAGE FOR THE FOLLOWING
+!               PARAMETERS.
+!
+!                 (1)  -    UNUSED
+!                 (2)  -    UNUSED
+!                 (3)  -    LENGTH OF PDS (IN BYTES)
+!                 (4)  -    LENGTH OF GDS (IN BYTES)
+!                 (5)  -    LENGTH OF BMS (IN BYTES)
+!                 (6)  -    LENGTH OF BDS (IN BYTES)
+!                 (7)  -    USED BY UNPACKING ROUTINE
+!                 (8)  -    NUMBER OF DATA POINTS FOR GRID
+!                 (9)  -    "GRIB" CHARACTERS START IN BYTE NUMBER
+!                 (10) -    USED BY UNPACKING ROUTINE
+!
+!
+!       KRET      INTEGER*4
+!                 THIS VARIABLE WILL CONTAIN THE RETURN INDICATOR.
+!
+!                 0    -    NO ERRORS DETECTED.
+!
+!                 1    -    'GRIB' NOT FOUND IN FIRST 100
+!                           CHARACTERS.
+!
+!                 2    -    '7777' NOT FOUND, EITHER MISSING OR
+!                           TOTAL OF SEC   COUNTS OF INDIVIDUAL
+!                           SECTIONS  IS INCORRECT.
+!
+!                 3    -    UNPACKED FIELD IS LARGER THAN 65160.
+!
+!                 4    -    IN GDS, DATA REPRESENTATION TYPE
+!                           NOT ONE OF THE CURRENTLY ACCEPTABLE
+!                           VALUES. SEE "GRIB" TABLE 9. VALUE
+!                           OF INCORRECT TYPE RETURNED IN KGDS(1).
+!
+!                 5    -    GRID INDICATED IN KPDS(3) IS NOT
+!                           AVAILABLE FOR THE CENTER INDICATED IN
+!                           KPDS(1) AND NO GDS SENT.
+!
+!                 7    -    EDITION INDICATED IN KPDS(18) HAS NOT
+!                           YET BEEN INCLUDED IN THE DECODER.
+!
+!                 8    -    GRID IDENTIFICATION = 255 (NOT STANDARD
+!                           GRID) BUT FLAG INDICATING PRESENCE OF
+!                           GDS IS TURNED OFF. NO METHOD OF
+!                           GENERATING PROPER GRID.
+!
+!                 9    -    PRODUCT OF KGDS(2) AND KGDS(3) DOES NOT
+!                           MATCH STANDARD NUMBER OF POINTS FOR THIS
+!                           GRID (FOR OTHER THAN SPECTRALS). THIS
+!                           WILL OCCUR ONLY IF THE GRID.
+!                           IDENTIFICATION, KPDS(3), AND A
+!                           TRANSMITTED GDS ARE INCONSISTENT.
+!
+!                10    -    CENTER INDICATOR WAS NOT ONE INDICATED
+!                           IN "GRIB" TABLE 1.  PLEASE CONTACT AD
+!                           PRODUCTION MANAGEMENT BRANCH (W/NMC42)
+!                                     IF THIS ERROR IS ENCOUNTERED.
+!
+!                11    -    BINARY DATA SECTION (BDS) NOT COMPLETELY
+!                           PROCESSED.  PROGRAM IS NOT SET TO PROCESS
+!                           FLAG COMBINATIONS AS SHOWN IN
+!                           OCTETS 4 AND 14.
+!
+!
+!  LIST OF TEXT MESSAGES FROM CODE
+!
+!
+!  W3FI63/FI632
+!
+!            'HAVE ENCOUNTERED A NEW GRID FOR NMC, PLEASE NOTIFY
+!            AUTOMATION DIVISION, PRODUCTION MANAGEMENT BRANCH
+!            (W/NMC42)'
+!
+!            'HAVE ENCOUNTERED A NEW GRID FOR ECMWF, PLEASE NOTIFY
+!            AUTOMATION DIVISION, PRODUCTION MANAGEMENT BRANCH
+!            (W/NMC42)'
+!
+!            'HAVE ENCOUNTERED A NEW GRID FOR U.K. METEOROLOGICAL
+!            OFFICE, BRACKNELL.  PLEASE NOTIFY AUTOMATION DIVISION,
+!            PRODUCTION MANAGEMENT BRANCH (W/NMC42)'
+!
+!            'HAVE ENCOUNTERED A NEW GRID FOR FNOC, PLEASE NOTIFY
+!            AUTOMATION DIVISION, PRODUCTION MANAGEMENT BRANCH
+!            (W/NMC42)'
+!
+!
+!  W3FI63/FI633
+!
+!            'POLAR STEREO PROCESSING NOT AVAILABLE'  *
+!
+!  W3FI63/FI634
+!
+!            'WARNING - BIT MAP MAY NOT BE ASSOCIATED WITH SPHERICAL
+!            COEFFICIENTS'
+!
+!
+!  W3FI63/FI637
+!
+!            'NO CURRENT LISTING OF FNOC GRIDS'      *
+!
+!
+!  * WILL BE AVAILABLE IN NEXT UPDATE
+!  ***************************************************************
+!
+! INCOMING MESSAGE HOLDER
+!
+   CHARACTER(len=1)  ::  MSGA(*)
+!
+! BIT MAP
+!
+   LOGICAL*1         ::  KBMS(*)
+!
+! ELEMENTS OF PRODUCT DESCRIPTION SEC   (PDS)
+!
+   INTEGER           ::  KPDS(*)
+!
+! ELEMENTS OF GRID DESCRIPTION SEC   (PDS)
+!
+   INTEGER           ::  KGDS(*)
+!
+! CONTAINER FOR GRIB GRID
+!
+   REAL              ::  DATA(*)
+!
+! ARRAY OF POINTERS AND COUNTERS
+!
+   INTEGER           ::  KPTR(*)
+!
+!  *****************************************************************
+   INTEGER           ::  KKK,JSGN,JEXP,IFR,NPTS
+   CHARACTER         ::  KK(8)
+   REAL              ::  REALKK,FVAL1,FDIFF1
+   EQUIVALENCE   (KK(1),KKK)
+!  *****************************************************************
+!        1.0 LOCATE BEGINNING OF 'GRIB' MESSAGE
+!             FIND 'GRIB' CHARACTERS
+!        2.0  USE COUNTS IN EACH DESCRIPTION SEC   TO DETERMINE
+!             IF '7777' IS IN PROPER PLACE.
+!        3.0  PARSE PRODUCT DEFINITION SECTION.
+!        4.0  PARSE GRID DESCRIPTION SEC   (IF INCLUDED)
+!        5.0  PARSE BIT MAP SEC   (IF INCLUDED)
+!        6.0  USING INFORMATION FROM PRODUCT DEFINITION, GRID
+!                  DESCRIPTION, AND BIT MAP SECTIONS.. EXTRACT
+!                  DATA AND PLACE INTO PROPER ARRAY.
+!  *******************************************************************
+!
+!                      MAIN DRIVER
+!
+!  *******************************************************************
+   SAVE
+   KPTR(10) = 0
+   !            SEE IF PROPER 'GRIB' KEY EXISTS, THEN
+   !            USING SEC   COUNTS, DETERMINE IF '7777'
+   !            IS IN THE PROPER LOCATION
+   !
+   CALL FI631(MSGA,KPTR,KPDS,KRET)
+   IF(KRET.NE.0) THEN
+      GO TO 900
+   END IF
+!     PRINT *,'FI631 KPTR',(KPTR(I),I=1,16)
+   !
+   ! PARSE PARAMETERS FROM PRODUCT DESCRIPTION SECTION
+   !
+   CALL FI632(MSGA,KPTR,KPDS,KRET)
+   IF(KRET.NE.0) THEN
+      GO TO 900
+   END IF
+!     PRINT *,'FI632 KPTR',(KPTR(I),I=1,16)
+   !
+   ! IF AVAILABLE, EXTRACT NEW GRID DESCRIPTION
+   !
+   IF (IAND(KPDS(4),128).NE.0) THEN
+       CALL FI633(MSGA,KPTR,KGDS,KRET)
+       IF(KRET.NE.0) THEN
+          GO TO 900
+       END IF
+!         PRINT *,'FI633 KPTR',(KPTR(I),I=1,16)
+   END IF
+   !
+   ! EXTRACT OR GENERATE BIT MAP
+   !
+   CALL FI634(MSGA,KPTR,KPDS,KGDS,KBMS,KRET)
+   IF(KRET.NE.0) THEN
+      GO TO 900
+   END IF
+!     PRINT *,'FI634 KPTR',(KPTR(I),I=1,16)
+   !
+   ! USING INFORMATION FROM PDS, BMS AND BIT DATA SEC  ,
+   ! EXTRACT AND SAVE IN GRIB GRID, ALL DATA ENTRIES.
+   !
+   IF (KPDS(18).EQ.1) THEN
+      CALL FI635(MSGA,KPTR,KPDS,KGDS,KBMS,DATA,KRET)
+      IF (KPTR(3).EQ.50) THEN
+!
+!                     PDS EQUAL 50 BYTES
+!                        THEREFORE SOMETHING SPECIAL IS GOING ON
+!
+!                        IN THIS CASE 2ND DIFFERENCE PACKING
+!                                NEEDS TO BE UNDONE.
+!
+!                   EXTRACT FIRST VALUE FROM BYTE 41-44 PDS
+!                              KPTR(9) CONTAINS OFFSET TO START OF
+!                              GRIB MESSAGE.
+!                   EXTRACT FIRST FIRST-DIFFERENCE FROM BYTES 45-48 PDS
+!
+!                  AND EXTRACT SCALE FACTOR (E) TO UNDO 2**E
+!                  THAT WAS APPLIED PRIOR TO 2ND ORDER PACKING
+!                  AND PLACED IN PDS BYTES 49-51
+!                  FACTOR IS A SIGNED TWO BYTE INTEGER
+!
+!                  ALSO NEED THE DECIMAL SCALING FROM PDS(27-28)
+!                  (AVAILABLE IN KPDS(22) FROM UNPACKER)
+!                  TO UNDO THE DECIMAL SCALING APPLIED TO THE
+!                  SECOND DIFFERENCES DURING UNPACKING.
+!                  SECOND DIFFS ALWAYS PACKED WITH 0 DECIMAL SCALE
+!                  BUT UNPACKER DOESNT KNOW THAT.
+!
+!             CALL GBYTE  (MSGA,FVAL1,KPTR(9)+384,32)
+!
+!         NOTE INTEGERS, CHARACTERS AND EQUIVALENCES
+!         DEFINED ABOVE TO MAKE THIS KKK EXTRACTION
+!         WORK AND LINE UP ON WORD BOUNDARIES
+!
+         CALL GBYTE (MSGA,KKK,KPTR(9)+384,32)
+!
+!       THE NEXT CODE WILL CONVERT THE IBM370 FOATING POINT
+!       TO THE FLOATING POINT USED ON YOUR MACHINE.
+!
+!       1ST TEST TO SEE IN ON 32 OR 64 BIT WORD MACHINE
+!       LW = 4 OR 8; IF 8 MAY BE A CRAY
+!
+         CALL W3FI01(LW)
+         IF (LW.EQ.4) THEN
+            CALL GBYTE (KK,JSGN,0,1)
+            CALL GBYTE (KK,JEXP,1,7)
+            CALL GBYTE (KK,IFR,8,24)
+         ELSE
+            CALL GBYTE (KK,JSGN,32,1)
+            CALL GBYTE (KK,JEXP,33,7)
+            CALL GBYTE (KK,IFR,40,24)
+         ENDIF
+
+         IF (IFR.EQ.0) THEN
+             REALKK = 0.0
+         ELSE IF (JEXP.EQ.0.AND.IFR.EQ.0) THEN
+             REALKK = 0.0
+         ELSE
+             REALKK = FLOAT(IFR) * 16.0 ** (JEXP - 64 - 6)
+             IF (JSGN.NE.0) REALKK = -REALKK
+         END IF
+         FVAL1 = REALKK
+!
+!             CALL GBYTE  (MSGA,FDIFF1,KPTR(9)+416,32)
+!          (REPLACED BY FOLLOWING EXTRACTION)
+!
+      CALL GBYTE (MSGA,KKK,KPTR(9)+416,32)
+!
+!       THE NEXT CODE WILL CONVERT THE IBM370 FOATING POINT
+!       TO THE FLOATING POINT USED ON YOUR MACHINE.
+!
+!       1ST TEST TO SEE IN ON 32 OR 64 BIT WORD MACHINE
+!       LW = 4 OR 8; IF 8 MAY BE A CRAY
+!
+         CALL W3FI01(LW)
+         IF (LW.EQ.4) THEN
+            CALL GBYTE (KK,JSGN,0,1)
+            CALL GBYTE (KK,JEXP,1,7)
+            CALL GBYTE (KK,IFR,8,24)
+         ELSE
+            CALL GBYTE (KK,JSGN,32,1)
+            CALL GBYTE (KK,JEXP,33,7)
+            CALL GBYTE (KK,IFR,40,24)
+         ENDIF
+
+         IF (IFR.EQ.0) THEN
+            REALKK = 0.0
+         ELSE IF (JEXP.EQ.0.AND.IFR.EQ.0) THEN
+            REALKK = 0.0
+         ELSE
+            REALKK = FLOAT(IFR) * 16.0 ** (JEXP - 64 - 6)
+            IF (JSGN.NE.0) REALKK = -REALKK
+         END IF
+         FDIFF1 = REALKK
+!
+         CALL GBYTE  (MSGA,ISIGN,KPTR(9)+448,1)
+         CALL GBYTE  (MSGA,ISCAL2,KPTR(9)+449,15)
+         IF(ISIGN.GT.0) THEN
+            ISCAL2 = - ISCAL2
+         ENDIF
+!             PRINT *,'DELTA POINT 1-',FVAL1
+!             PRINT *,'DELTA POINT 2-',FDIFF1
+!             PRINT *,'DELTA POINT 3-',ISCAL2
+         NPTS  = KPTR(10)
+!             WRITE (6,FMT='(''  2ND DIFF POINTS IN FIELD = '',/,
+!    &         10(3X,10F12.2,/))') (DATA(I),I=1,NPTS)
+!             PRINT *,'DELTA POINT 4-',KPDS(22)
+         CALL W3FI83 (DATA,NPTS,FVAL1,FDIFF1,ISCAL2,KPDS(22),KPDS,KGDS)
+!             WRITE (6,FMT='(''  2ND DIFF EXPANDED POINTS IN FIELD = '',
+!    &            /,10(3X,10F12.2,/))') (DATA(I),I=1,NPTS)
+!             WRITE (6,FMT='(''  END OF ARRAY IN FIELD = '',/,
+!    &         10(3X,10F12.2,/))') (DATA(I),I=NPTS-5,NPTS)
+       END IF
+   ELSE
+       PRINT *,'FI635 NOT PROGRAMMED FOR EDITION NR  = ',KPDS(18)
+       KRET   = 7
+   END IF
+!
+   900 RETURN
+   END
+
+!----------------------------------------------------------------------------
+   SUBROUTINE FI631(MSGA,KPTR,KPDS,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI631       FIND 'GRIB' CHARS & RESET POINTERS
+!   PRGMMR: BILL CAVANAUGH   ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: FIND 'GRIB; CHARACTERS AND SET POINTERS TO THE NEXT
+!   BYTE FOLLOWING 'GRIB'. IF THEY EXIST EXTRACT COUNTS FROM GDS AND
+!   BMS. EXTRACT COUNT FROM BDS. DETERMINE IF SUM OF COUNTS ACTUALLY
+!   PLACES TERMINATOR '7777' AT THE CORRECT LOCATION.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!
+! USAGE:    CALL FI631(MSGA,KPTR,KPDS,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA       - GRIB FIELD - "GRIB" THRU "7777"
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     KPDS     - ARRAY CONTAINING PDS ELEMENTS.
+!          (1)   - ID OF CENTER
+!          (2)   - MODEL IDENTIFICATION
+!          (3)   - GRID IDENTIFICATION
+!          (4)   - GDS/BMS FLAG
+!          (5)   - INDICATOR OF PARAMETER
+!          (6)   - TYPE OF LEVEL
+!          (7)   - HEIGHT/PRESSURE , ETC OF LEVEL
+!          (8)   - YEAR OF CENTURY
+!          (9)   - MONTH OF YEAR
+!          (10)  - DAY OF MONTH
+!          (11)  - HOUR OF DAY
+!          (12)  - MINUTE OF HOUR
+!          (13)  - INDICATOR OF FORECAST TIME UNIT
+!          (14)  - TIME RANGE 1
+!          (15)  - TIME RANGE 2
+!          (16)  - TIME RANGE FLAG
+!          (17)  - NUMBER INCLUDED IN AVERAGE
+!     KPTR       - SEE INPUT LIST
+!     KRET       - ERROR RETURN
+!
+! REMARKS:
+!     ERROR RETURNS
+!     KRET  = 1  -  NO 'GRIB'
+!             2  -  NO '7777' OR MISLOCATED (BY COUNTS)
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!
+! INCOMING MESSAGE HOLDER
+!
+   CHARACTER(len=1)  ::  MSGA(*)
+!
+! ARRAY OF POINTERS AND COUNTERS
+!
+   INTEGER           ::  KPTR(*)
+!
+! PRODUCT DESCRIPTION SECTION DATA.
+!
+   INTEGER           ::  KPDS(*)
+!
+   INTEGER           ::  KRET
+!
+!  ******************************************************************
+   SAVE
+   KRET = 0
+!  -------------------  FIND 'GRIB' KEY
+   DO 50 I = 0, 839, 8
+      CALL GBYTE (MSGA,MGRIB,I,32)
+      IF (MGRIB.EQ.1196575042) THEN
+         KPTR(9)   = I
+         GO TO 60
+      END IF
+   50 CONTINUE
+   KRET  = 1
+   RETURN
+   60 CONTINUE
+!  -------------FOUND 'GRIB'
+!                        SKIP GRIB CHARACTERS
+!     PRINT *,'FI631 GRIB AT',I
+   KPTR(8)   = KPTR(9) + 32
+   CALL GBYTE (MSGA,ITOTAL,KPTR(8),24)
+!                    HAVE LIFTED WHAT MAY BE A MSG TOTAL BYTE COUNT
+   IPOINT    = KPTR(9) + ITOTAL * 8 - 32
+   CALL GBYTE (MSGA,I7777,IPOINT,32)
+   IF (I7777.EQ.926365495) THEN
+!                 HAVE FOUND END OF MESSAGE '7777' IN PROPER LOCATION
+!                 MARK AND PROCESS AS GRIB VERSION 1 OR HIGHER
+!
+!         PRINT *,'FI631 7777 FOUND AT',IPOINT
+!
+       KPTR(8)   = KPTR(8) + 24
+       KPTR(1)   = ITOTAL
+       KPTR(2)   = 8
+       CALL GBYTE (MSGA,KPDS(18),KPTR(8),8)
+       KPTR(8)   = KPTR(8) + 8
+   ELSE
+!                 CANNOT FIND END OF GRIB EDITION 1 MESSAGE
+       KRET      = 2
+       RETURN
+   END IF
+   !  -------------------  PROCESS SECTION 1
+   !                   EXTRACT COUNT FROM PDS
+!     PRINT *,'START OF PDS',KPTR(8)
+   CALL GBYTE (MSGA,KPTR(3),KPTR(8),24)
+   LOOK      = KPTR(8) + 56
+!                   EXTRACT GDS/BMS FLAG
+   CALL GBYTE (MSGA,KPDS(4),LOOK,8)
+   KPTR(8)   = KPTR(8) + KPTR(3) * 8
+!     PRINT *,'START OF GDS',KPTR(8)
+   IF (IAND(KPDS(4),128).NE.0) THEN
+       !
+       ! EXTRACT COUNT FROM GDS
+       !
+       CALL GBYTE (MSGA,KPTR(4),KPTR(8),24)
+       KPTR(8)   = KPTR(8) + KPTR(4) * 8
+   ELSE
+       KPTR(4)   = 0
+   END IF
+!     PRINT *,'START OF BMS',KPTR(8)
+   IF (IAND(KPDS(4),64).NE.0) THEN
+   !
+   ! EXTRACT COUNT FROM BMS
+   !
+      CALL GBYTE (MSGA,KPTR(5),KPTR(8),24)
+   ELSE
+       KPTR(5)   = 0
+   END IF
+   KPTR(8)   = KPTR(8) + KPTR(5) * 8
+!     PRINT *,'START OF BDS',KPTR(8)
+!                   EXTRACT COUNT FROM BDS
+   CALL GBYTE (MSGA,KPTR(6),KPTR(8),24)
+!  ---------------  TEST FOR '7777'
+!     PRINT *,(KPTR(KJ),KJ=1,10)
+   KPTR(8)   = KPTR(8) + KPTR(6) * 8
+!                   EXTRACT FOUR BYTES FROM THIS LOCATION
+!     PRINT *,'FI631 LOOKING FOR 7777 AT',KPTR(8)
+   CALL GBYTE (MSGA,K7777,KPTR(8),32)
+   MATCH  = KPTR(2) + KPTR(3) + KPTR(4) + KPTR(5) + KPTR(6) + 4
+   IF (K7777.NE.926365495.OR.MATCH.NE.KPTR(1)) THEN
+      KRET  = 2
+   ELSE
+!         PRINT *,'FI631 7777 AT',KPTR(8)
+!         PRINT *,'(KPTR(I),I=1,8)=',(KPTR(I),I=1,8),
+!    1            ' KPDS(18)=',KPDS(18)
+      IF (KPDS(18).EQ.0) THEN
+         KPTR(1)  = KPTR(2) + KPTR(3) + KPTR(4) + KPTR(5) + KPTR(6) + 4
+      END IF
+   END IF
+!     PRINT *,'KPTR',(KPTR(I),I=1,16)
+   RETURN
+   END
+
+!------------------------------------------------------------------------
+   SUBROUTINE FI632(MSGA,KPTR,KPDS,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI632       GATHER INFO FROM PRODUCT DEFINITION SEC
+!   PRGMMR: BILL CAVANAUGH   ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: EXTRACT INFORMATION FROM THE PRODUCT DESCRIPTION
+!   SEC  , AND GENERATE LABEL INFORMATION TO PERMIT STORAGE
+!   IN OFFICE NOTE 84 FORMAT.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!   93-12-08  CAVANAUGH   CORRECTED TEST FOR EDITION NUMBER INSTEAD
+!                         OF VERSION NUMBER
+!
+! USAGE:    CALL FI632(MSGA,KPTR,KPDS,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA      - ARRAY CONTAINING GRIB MESSAGE
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     KPDS     - ARRAY CONTAINING PDS ELEMENTS.
+!          (1)   - ID OF CENTER
+!          (2)   - MODEL IDENTIFICATION
+!          (3)   - GRID IDENTIFICATION
+!          (4)   - GDS/BMS FLAG
+!          (5)   - INDICATOR OF PARAMETER
+!          (6)   - TYPE OF LEVEL
+!          (7)   - HEIGHT/PRESSURE , ETC OF LEVEL
+!          (8)   - YEAR OF CENTURY
+!          (9)   - MONTH OF YEAR
+!          (10)  - DAY OF MONTH
+!          (11)  - HOUR OF DAY
+!          (12)  - MINUTE OF HOUR
+!          (13)  - INDICATOR OF FORECAST TIME UNIT
+!          (14)  - TIME RANGE 1
+!          (15)  - TIME RANGE 2
+!          (16)  - TIME RANGE FLAG
+!          (17)  - NUMBER INCLUDED IN AVERAGE
+!          (18)  -
+!          (19)  -
+!          (20)  - NUMBER MISSING FROM AVGS/ACCUMULATIONS
+!          (21)  - CENTURY
+!          (22)  - UNITS DECIMAL SCALE FACTOR
+!          (23)  - SUBCENTER
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!                  SEE INPUT LIST
+!     KRET   - ERROR RETURN
+!
+! REMARKS:
+!        ERROR RETURN = 0 - NO ERRORS
+!                     = 8 - TEMP GDS INDICATED, BUT NO GDS
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!
+!                       INCOMING MESSAGE HOLDER
+   CHARACTER*1   MSGA(*)
+!
+!                       ARRAY OF POINTERS AND COUNTERS
+   INTEGER       KPTR(*)
+!                       PRODUCT DESCRIPTION SECTION ENTRIES
+   INTEGER       KPDS(*)
+!
+   INTEGER       KRET
+!  -------------------  PROCESS SECTION 1
+   SAVE
+   KPTR(8)  = KPTR(9) + KPTR(2) * 8 + 24
+!  BYTE 4
+!                   PARAMETER TABLE VERSION NR
+       CALL GBYTE (MSGA,KPDS(19),KPTR(8),8)
+       KPTR(8)   = KPTR(8) + 8
+!  BYTE 5           IDENTIFICATION OF CENTER
+   CALL GBYTE (MSGA,KPDS(1),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 6
+!                       GET GENERATING PROCESS ID NR
+   CALL GBYTE (MSGA,KPDS(2),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 7
+!                      GRID DEFINITION
+   CALL GBYTE (MSGA,KPDS(3),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 8
+!                      GDS/BMS FLAGS
+!     CALL GBYTE (MSGA,KPDS(4),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 9
+!                      INDICATOR OF PARAMETER
+   CALL GBYTE (MSGA,KPDS(5),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 10
+!                      TYPE OF LEVEL
+   CALL GBYTE (MSGA,KPDS(6),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 11,12
+!                      HEIGHT/PRESSURE
+   CALL GBYTE (MSGA,KPDS(7),KPTR(8),16)
+   KPTR(8)   = KPTR(8) + 16
+!  BYTE 13
+!                      YEAR OF CENTURY
+   CALL GBYTE (MSGA,KPDS(8),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 14
+!                      MONTH OF YEAR
+   CALL GBYTE (MSGA,KPDS(9),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 15
+!                      DAY OF MONTH
+   CALL GBYTE (MSGA,KPDS(10),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 16
+!                      HOUR OF DAY
+   CALL GBYTE (MSGA,KPDS(11),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 17
+!                      MINUTE
+   CALL GBYTE (MSGA,KPDS(12),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 18
+!                      INDICATOR TIME UNIT RANGE
+   CALL GBYTE (MSGA,KPDS(13),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 19
+!                      P1 - PERIOD OF TIME
+   CALL GBYTE (MSGA,KPDS(14),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 20
+!                      P2 - PERIOD OF TIME
+   CALL GBYTE (MSGA,KPDS(15),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 21
+!                      TIME RANGE INDICATOR
+   CALL GBYTE (MSGA,KPDS(16),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!
+!     IF TIME RANGE INDICATOR IS 10, P1 IS PACKED IN
+!     PDS BYTES 19-20
+!
+   IF (KPDS(16).EQ.10) THEN
+       KPDS(14)  = KPDS(14) * 256 + KPDS(15)
+       KPDS(15)  = 0
+   END IF
+!  BYTE 22,23
+!                      NUMBER INCLUDED IN AVERAGE
+   CALL GBYTE (MSGA,KPDS(17),KPTR(8),16)
+   KPTR(8)   = KPTR(8) + 16
+!  BYTE 24
+!                      NUMBER MISSING FROM AVERAGES/ACCUMULATIONS
+   CALL GBYTE (MSGA,KPDS(20),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+!  BYTE 25
+!                      IDENTIFICATION OF CENTURY
+   CALL GBYTE (MSGA,KPDS(21),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+   IF (KPTR(3).GT.25) THEN
+!  BYTE 26              SUB CENTER NUMBER
+       CALL GBYTE (MSGA,KPDS(23),KPTR(8),8)
+       KPTR(8)   = KPTR(8) + 8
+       IF (KPTR(3).GE.28) THEN
+!  BYTE 27-28
+!                          UNITS DECIMAL SCALE FACTOR
+           CALL GBYTE (MSGA,ISIGN,KPTR(8),1)
+           KPTR(8)  = KPTR(8) + 1
+           CALL GBYTE (MSGA,IDEC,KPTR(8),15)
+           KPTR(8)  = KPTR(8) + 15
+           IF (ISIGN.GT.0) THEN
+               KPDS(22)  = - IDEC
+           ELSE
+               KPDS(22)  = IDEC
+           END IF
+           ISIZ  = KPTR(3) - 28
+           IF (ISIZ.LE.12) THEN
+!  BYTE  29
+               CALL GBYTE (MSGA,KPDS(24),KPTR(8)+8,8)
+!  BYTE  30
+               CALL GBYTE (MSGA,KPDS(25),KPTR(8)+16,8)
+!  BYTES 31-40                  CURRENTLY RESERVED FOR FUTURE USE
+               KPTR(8)  = KPTR(8) + ISIZ * 8
+           ELSE
+!  BYTE  29
+               CALL GBYTE (MSGA,KPDS(24),KPTR(8)+8,8)
+!  BYTE  30
+               CALL GBYTE (MSGA,KPDS(25),KPTR(8)+16,8)
+!  BYTES 31-40                  CURRENTLY RESERVED FOR FUTURE USE
+               KPTR(8)  = KPTR(8) + 12 * 8
+!  BYTES 41 - N                 LOCAL USE DATA
+               CALL W3FI01(LW)
+               MWDBIT  = LW * 8
+               ISIZ    = KPTR(3) - 40
+               ITER    = ISIZ / LW
+               IF (MOD(ISIZ,LW).NE.0) ITER = ITER + 1
+               CALL GBYTES (MSGA,KPDS(36),KPTR(8),MWDBIT,0,ITER)
+               KPTR(8)  = KPTR(8) + ISIZ * 8
+           END IF
+       END IF
+   END IF
+!  ----------- TEST FOR NEW GRID
+   IF (IAND(KPDS(4),128).NE.0) THEN
+       IF (IAND(KPDS(4),64).NE.0) THEN
+           IF (KPDS(3).NE.255) THEN
+               IF (KPDS(3).GE.21.AND.KPDS(3).LE.26) THEN
+                   RETURN
+               ELSE IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+                   RETURN
+               ELSE IF (KPDS(3).GE.61.AND.KPDS(3).LE.64) THEN
+                   RETURN
+               END IF
+               IF (KPDS(1).EQ.7) THEN
+                   IF (KPDS(3).GE.2.AND.KPDS(3).LE.3) THEN
+                   ELSE IF (KPDS(3).GE.5.AND.KPDS(3).LE.6) THEN
+                   ELSE IF (KPDS(3).GE.27.AND.KPDS(3).LE.34) THEN
+                   ELSE IF (KPDS(3).EQ.50) THEN
+                   ELSE IF (KPDS(3).GE.70.AND.KPDS(3).LE.77) THEN
+                   ELSE IF (KPDS(3).EQ.98) THEN
+                   ELSE IF (KPDS(3).GE.100.AND.KPDS(3).LE.105) THEN
+                   ELSE IF (KPDS(3).EQ.126) THEN
+                   ELSE IF (KPDS(3).GE.201.AND.KPDS(3).LE.215) THEN
+                   ELSE
+                       PRINT *,' HAVE ENCOUNTERED A NEW GRID FOR',             &
+                       ' NMC WITHOUT A GRID DESCRIPTION SECTION'
+                       PRINT *,' PLEASE NOTIFY AUTOMATION DIVISION'
+                       PRINT *,' PRODUCTION MANAGEMENT BRANCH'
+                       PRINT *,' W/NMC42)'
+                   END IF
+               ELSE IF (KPDS(1).EQ.98) THEN
+                   IF (KPDS(3).GE.1.AND.KPDS(3).LE.16) THEN
+                   ELSE
+                       PRINT *,' HAVE ENCOUNTERED A NEW GRID FOR',             &
+                       ' ECMWF WITHOUT A GRID DESCRIPTION SECTION'
+                       PRINT *,' PLEASE NOTIFY AUTOMATION DIVISION'
+                       PRINT *,' PRODUCTION MANAGEMENT BRANCH'
+                       PRINT *,' W/NMC42)'
+                   END IF
+               ELSE IF (KPDS(1).EQ.74) THEN
+                   IF (KPDS(3).GE.1.AND.KPDS(3).LE.12) THEN
+                   ELSE IF (KPDS(3).GE.21.AND.KPDS(3).LE.26)THEN
+                   ELSE IF (KPDS(3).GE.61.AND.KPDS(3).LE.64) THEN
+                   ELSE IF (KPDS(3).GE.70.AND.KPDS(3).LE.77) THEN
+                   ELSE
+                       PRINT *,' HAVE ENCOUNTERED A NEW GRID FOR',             &
+                               ' U.K. MET OFFICE, BRACKNELL',                  &
+                               ' WITHOUT A GRID DESCRIPTION SECTION'
+                       PRINT *,' PLEASE NOTIFY AUTOMATION DIVISION'
+                       PRINT *,' PRODUCTION MANAGEMENT BRANCH'
+                       PRINT *,' W/NMC42)'
+                   END IF
+               ELSE IF (KPDS(1).EQ.58) THEN
+                   IF (KPDS(3).GE.1.AND.KPDS(3).LE.12) THEN
+                   ELSE
+                       PRINT *,' HAVE ENCOUNTERED A NEW GRID FOR',             &
+                         ' FNOC WITHOUT A GRID DESCRIPTION SECTION'
+                       PRINT *,' PLEASE NOTIFY AUTOMATION DIVISION'
+                       PRINT *,' PRODUCTION MANAGEMENT BRANCH'
+                       PRINT *,' W/NMC42)'
+                   END IF
+               END IF
+           END IF
+       END IF
+   END IF
+   RETURN
+   END
+   SUBROUTINE FI633(MSGA,KPTR,KGDS,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI633       EXTRACT INFO FROM GRIB-GDS
+!   PRGMMR: BILL CAVANAUGH   ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: EXTRACT INFORMATION ON UNLISTED GRID TO ALLOW
+!   CONVERSION TO OFFICE NOTE 84 FORMAT.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!   95-03-20  M.BALDWIN   FI633 QUICK AN DIRTY FIX MODIFICATION TO GET
+!                         DATA REP TYPE [KGDS(1)] 201 AND 202 TO WORK. 
+!
+! USAGE:    CALL FI633(MSGA,KPTR,KGDS,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA      - ARRAY CONTAINING GRIB MESSAGE
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     KGDS     - ARRAY CONTAINING GDS ELEMENTS.
+!          (1)   - DATA REPRESENTATION TYPE
+!          (19)  - NUMBER OF VERTICAL COORDINATE PARAMETERS
+!          (20)  - OCTET NUMBER OF THE LIST OF VERTICAL COORDINATE
+!                  PARAMETERS
+!                  OR
+!                  OCTET NUMBER OF THE LIST OF NUMBERS OF POINTS
+!                  IN EACH ROW
+!                  OR
+!                  255 IF NEITHER ARE PRESENT
+!          (21)  - FOR GRIDS WITH PL, NUMBER OF POINTS IN GRID
+!          (22)  - NUMBER OF WORDS IN EACH ROW
+!       LATITUDE/LONGITUDE GRIDS
+!          (2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!          (3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG
+!          (7)   - LA(2) LATITUDE OF EXTREME POINT
+!          (8)   - LO(2) LONGITUDE OF EXTREME POINT
+!          (9)   - DI LATITUDINAL DIRECTION OF INCREMENT
+!          (10)  - DJ LONGITUDINAL DIRECTION INCREMENT
+!          (11)  - SCANNING MODE FLAG
+!       POLAR STEREOGRAPHIC GRIDS
+!          (2)   - N(I) NR POINTS ALONG LAT CIRCLE
+!          (3)   - N(J) NR POINTS ALONG LON CIRCLE
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESERVED
+!          (7)   - LOV GRID ORIENTATION
+!          (8)   - DX - X DIRECTION INCREMENT
+!          (9)   - DY - Y DIRECTION INCREMENT
+!          (10)  - PROJECTION CENTER FLAG
+!          (11)  - SCANNING MODE
+!       SPHERICAL HARMONIC COEFFICIENTS
+!          (2)   - J PENTAGONAL RESOLUTION PARAMETER
+!          (3)   - K      "          "         "
+!          (4)   - M      "          "         "
+!          (5)   - REPRESENTATION TYPE
+!          (6)   - COEFFICIENT STORAGE MODE
+!       MERCATOR GRIDS
+!          (2)   - N(I) NR POINTS ON LATITUDE CIRCLE
+!          (3)   - N(J) NR POINTS ON LONGITUDE MERIDIAN
+!          (4)   - LA(1) LATITUDE OF ORIGIN
+!          (5)   - LO(1) LONGITUDE OF ORIGIN
+!          (6)   - RESOLUTION FLAG
+!          (7)   - LA(2) LATITUDE OF LAST GRID POINT
+!          (8)   - LO(2) LONGITUDE OF LAST GRID POINT
+!          (9)   - LATIN - LATITUDE OF PROJECTION INTERSECTION
+!          (10)  - RESERVED
+!          (11)  - SCANNING MODE FLAG
+!          (12)  - LONGITUDINAL DIR GRID LENGTH
+!          (13)  - LATITUDINAL DIR GRID LENGTH
+!       LAMBERT CONFORMAL GRIDS
+!          (2)   - NX NR POINTS ALONG X-AXIS
+!          (3)   - NY NR POINTS ALONG Y-AXIS
+!          (4)   - LA1 LAT OF ORIGIN (LOWER LEFT)
+!          (5)   - LO1 LON OF ORIGIN (LOWER LEFT)
+!          (6)   - RESOLUTION (RIGHT ADJ COPY OF OCTET 17)
+!          (7)   - LOV - ORIENTATION OF GRID
+!          (8)   - DX - X-DIR INCREMENT
+!          (9)   - DY - Y-DIR INCREMENT
+!          (10)  - PROJECTION CENTER FLAG
+!          (11)  - SCANNING MODE FLAG
+!          (12)  - LATIN 1 - FIRST LAT FROM POLE OF SECANT CONE INTER
+!          (13)  - LATIN 2 - SECOND LAT FROM POLE OF SECANT CONE INTER
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!                  SEE INPUT LIST
+!     KRET       - ERROR RETURN
+!
+! REMARKS:
+!     KRET = 0
+!          = 4   - DATA REPRESENTATION TYPE NOT CURRENTLY ACCEPTABLE
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!  ************************************************************
+!
+! INCOMING MESSAGE HOLDER
+!
+   CHARACTER(len=1)  ::  MSGA(*)
+!
+! ARRAY GDS ELEMENTS
+!
+   INTEGER           ::  KGDS(*)
+!
+! ARRAY OF POINTERS AND COUNTERS
+!
+   INTEGER           ::  KPTR(*)
+   
+   INTEGER           ::  KRET
+!  ---------------------------------------------------------------
+   SAVE
+   KRET    = 0
+   !
+   ! PROCESS GRID DEFINITION SECTION (IF PRESENT)
+   ! MAKE SURE BIT POINTER IS PROPERLY SET
+   !
+   KPTR(8)  = KPTR(9) + (KPTR(2)*8) + (KPTR(3)*8) + 24
+   NSAVE    = KPTR(8) - 24
+   !
+   !  BYTE 4
+   !            NV - NR OF VERT COORD PARAMETERS
+   !
+   CALL GBYTE (MSGA,KGDS(19),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  BYTE 5
+   !                  PV - LOCATION - SEE FM92 MANUAL
+   !
+   CALL GBYTE (MSGA,KGDS(20),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  BYTE 6
+   !                      DATA REPRESENTATION TYPE
+   !
+   CALL GBYTE (MSGA,KGDS(1),KPTR(8),8)
+   KPTR(8)   = KPTR(8) + 8
+   !
+   !           BYTES 7-32 ARE GRID DEFINITION DEPENDING ON
+   !           DATA REPRESENTATION TYPE
+   !
+   IF (KGDS(1).EQ.0) THEN
+       GO TO 1000
+   ELSE IF (KGDS(1).EQ.1) THEN
+       GO TO 4000
+   ELSE IF (KGDS(1).EQ.2.OR.KGDS(1).EQ.5) THEN
+       GO TO 2000
+   ELSE IF (KGDS(1).EQ.3) THEN
+       GO TO 5000
+   ELSE IF (KGDS(1).EQ.4) THEN
+       GO TO 1000
+!     ELSE IF (KGDS(1).EQ.10) THEN
+!     ELSE IF (KGDS(1).EQ.14) THEN
+!     ELSE IF (KGDS(1).EQ.20) THEN
+!     ELSE IF (KGDS(1).EQ.24) THEN
+!     ELSE IF (KGDS(1).EQ.30) THEN
+!     ELSE IF (KGDS(1).EQ.34) THEN
+   ELSE IF (KGDS(1).EQ.50) THEN
+       GO TO 3000
+!     ELSE IF (KGDS(1).EQ.60) THEN
+!     ELSE IF (KGDS(1).EQ.70) THEN
+!     ELSE IF (KGDS(1).EQ.80) THEN
+   ELSE IF (KGDS(1).EQ.201.OR.KGDS(1).EQ.202) THEN
+       GO TO 1000
+   ELSE
+!                      MARK AS GDS/ UNKNOWN DATA REPRESENTATION TYPE
+       KRET     = 4
+       RETURN
+   END IF
+!     BYTE 33-N   VERTICAL COORDINATE PARAMETERS
+!  -----------
+!     BYTES 33-42 EXTENSIONS OF GRID DEFINITION FOR ROTATION
+!                 OR STRETCHING OF THE COORDINATE SYSTEM OR
+!                 LAMBERT CONFORMAL PROJECTION.
+!     BYTE 43-N   VERTICAL COORDINATE PARAMETERS
+!  -----------
+!     BYTES 33-52 EXTENSIONS OF GRID DEFINITION FOR STRETCHED
+!                 AND ROTATED COORDINATE SYSTEM
+!     BYTE 53-N   VERTICAL COORDINATE PARAMETERS
+!  -----------
+! ************************************************************
+!  ------------------- LATITUDE/LONGITUDE GRIDS
+!
+   !  ------------------- BYTE 7-8     NR OF POINTS ALONG LATITUDE CIRCLE
+   !
+ 1000 CONTINUE
+   CALL GBYTE (MSGA,KGDS(2),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 9-10    NR OF POINTS ALONG LONG MERIDIAN
+   !
+   CALL GBYTE (MSGA,KGDS(3),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 11-13   LATITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(4),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(4),8388608).NE.0) THEN
+       KGDS(4)  =  IAND(KGDS(4),8388607) * (-1)
+   END IF
+   !
+   !  ------------------- BYTE 14-16   LONGITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(5),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(5),8388608).NE.0) THEN
+       KGDS(5)  =  - IAND(KGDS(5),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 17      RESOLUTION FLAG
+   !
+   CALL GBYTE (MSGA,KGDS(6),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 18-20   LATITUDE OF LAST GRID POINT
+   !
+   CALL GBYTE (MSGA,KGDS(7),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(7),8388608).NE.0) THEN
+       KGDS(7)  =  - IAND(KGDS(7),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 21-23   LONGITUDE OF LAST GRID POINT
+   !
+   CALL GBYTE (MSGA,KGDS(8),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(8),8388608).NE.0) THEN
+       KGDS(8)  =  - IAND(KGDS(8),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 24-25   LATITUDINAL DIR INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(9),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 26-27   IF REGULAR LAT/LON GRID
+   !
+   !                                       HAVE LONGIT DIR INCREMENT
+   !                                   ELSE IF GAUSSIAN GRID
+   !                                       HAVE NR OF LAT CIRCLES
+   !                                       BETWEEN POLE AND EQUATOR
+   CALL GBYTE (MSGA,KGDS(10),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 28      SCANNING MODE FLAGS
+   !
+   CALL GBYTE (MSGA,KGDS(11),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 29-32   RESERVED
+   !                             SKIP TO START OF BYTE 33
+   CALL GBYTE (MSGA,KGDS(12),KPTR(8),32)
+   KPTR(8)  = KPTR(8) + 32
+   !  -------------------
+   GO TO 900
+!  ******************************************************************
+!            ' POLAR STEREO PROCESSING '
+!
+   !
+   !  ------------------- BYTE 7-8     NR OF POINTS ALONG X=AXIS
+   !
+ 2000 CONTINUE
+   CALL GBYTE (MSGA,KGDS(2),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 9-10    NR OF POINTS ALONG Y-AXIS
+   !
+   CALL GBYTE (MSGA,KGDS(3),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 11-13   LATITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(4),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(4),8388608).NE.0) THEN
+       KGDS(4)  =  - IAND(KGDS(4),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 14-16   LONGITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(5),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(5),8388608).NE.0) THEN
+       KGDS(5)  =   - IAND(KGDS(5),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 17      RESERVED
+   !
+   CALL GBYTE (MSGA,KGDS(6),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 18-20   LOV ORIENTATION OF THE GRID
+   !
+   CALL GBYTE (MSGA,KGDS(7),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(7),8388608).NE.0) THEN
+       KGDS(7)  =  - IAND(KGDS(7),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 21-23   DX - THE X DIRECTION INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(8),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(8),8388608).NE.0) THEN
+       KGDS(8)  =  - IAND(KGDS(8),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 24-26   DY - THE Y DIRECTION INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(9),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(9),8388608).NE.0) THEN
+       KGDS(9)  =  - IAND(KGDS(9),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 27      PROJECTION CENTER FLAG
+   !
+   CALL GBYTE (MSGA,KGDS(10),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 28      SCANNING MODE
+   !
+   CALL GBYTE (MSGA,KGDS(11),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 29-32   RESERVED
+   !                             SKIP TO START OF BYTE 33
+   CALL GBYTE (MSGA,KGDS(12),KPTR(8),32)
+   KPTR(8)  = KPTR(8) + 32
+
+   !  -------------------
+   GO TO 900
+!
+!  ******************************************************************
+!  ------------------- GRID DESCRIPTION FOR SPHERICAL HARMONIC COEFF.
+!
+   !
+   !  ------------------- BYTE 7-8     J PENTAGONAL RESOLUTION PARAMETER
+   !
+ 3000 CONTINUE
+   CALL GBYTE (MSGA,KGDS(2),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 9-10    K PENTAGONAL RESOLUTION PARAMETER
+   !
+   CALL GBYTE (MSGA,KGDS(3),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 11-12   M PENTAGONAL RESOLUTION PARAMETER
+   !
+   CALL GBYTE (MSGA,KGDS(4),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 13 REPRESENTATION TYPE
+   !
+   CALL GBYTE (MSGA,KGDS(5),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 14 COEFFICIENT STORAGE MODE
+   !
+   CALL GBYTE (MSGA,KGDS(6),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  -------------------        EMPTY FIELDS - BYTES 15 - 32
+   !                 SET TO START OF BYTE 33
+   KPTR(8)  = KPTR(8) + 18 * 8
+   GO TO 900
+!  ******************************************************************
+!                      PROCESS MERCATOR GRIDS
+!
+   !
+   !  ------------------- BYTE 7-8     NR OF POINTS ALONG LATITUDE CIRCLE
+   !
+ 4000 CONTINUE
+   CALL GBYTE (MSGA,KGDS(2),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 9-10    NR OF POINTS ALONG LONG MERIDIAN
+   !
+   CALL GBYTE (MSGA,KGDS(3),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 11-13   LATITUE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(4),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(4),8388608).NE.0) THEN
+       KGDS(4)  =  - IAND(KGDS(4),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 14-16   LONGITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(5),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(5),8388608).NE.0) THEN
+       KGDS(5)  =  - IAND(KGDS(5),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 17      RESOLUTION FLAG
+   !
+   CALL GBYTE (MSGA,KGDS(6),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 18-20   LATITUDE OF EXTREME POINT
+   !
+   CALL GBYTE (MSGA,KGDS(7),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(7),8388608).NE.0) THEN
+       KGDS(7)  =  - IAND(KGDS(7),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 21-23   LONGITUDE OF EXTREME POINT
+   !
+   CALL GBYTE (MSGA,KGDS(8),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(8),8388608).NE.0) THEN
+       KGDS(8)  =  - IAND(KGDS(8),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 24-26   LATITUDE OF PROJECTION INTERSECTION
+   !
+   CALL GBYTE (MSGA,KGDS(9),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(9),8388608).NE.0) THEN
+       KGDS(9)  =  - IAND(KGDS(9),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 27   RESERVED
+   !
+   CALL GBYTE (MSGA,KGDS(10),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 28      SCANNING MODE
+   !
+   CALL GBYTE (MSGA,KGDS(11),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 29-31   LONGITUDINAL DIR INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(12),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(12),8388608).NE.0) THEN
+       KGDS(12)  =  - IAND(KGDS(12),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 32-34   LATITUDINAL DIR INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(13),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(13),8388608).NE.0) THEN
+       KGDS(13)  =  - IAND(KGDS(13),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 35-42   RESERVED
+   !                        SKIP TO START OF BYTE 43
+   KPTR(8)  = KPTR(8) + 8 * 8
+   !  -------------------
+   GO TO 900
+!  ******************************************************************
+!                      PROCESS LAMBERT CONFORMAL
+!
+   !
+   !  ------------------- BYTE 7-8     NR OF POINTS ALONG X-AXIS
+   !
+ 5000 CONTINUE
+   CALL GBYTE (MSGA,KGDS(2),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 9-10    NR OF POINTS ALONG Y-AXIS
+   !
+   CALL GBYTE (MSGA,KGDS(3),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !  ------------------- BYTE 11-13   LATITUDE OF ORIGIN
+   !
+   CALL GBYTE (MSGA,KGDS(4),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(4),8388608).NE.0) THEN
+       KGDS(4)  =  - IAND(KGDS(4),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 14-16   LONGITUDE OF ORIGIN (LOWER LEFT)
+   !
+   CALL GBYTE (MSGA,KGDS(5),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(5),8388608).NE.0) THEN
+       KGDS(5)  = - IAND(KGDS(5),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 17      RESOLUTION
+   !
+   CALL GBYTE (MSGA,KGDS(6),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 18-20   LOV -ORIENTATION OF GRID
+   !
+   CALL GBYTE (MSGA,KGDS(7),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(7),8388608).NE.0) THEN
+       KGDS(7)  = - IAND(KGDS(7),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 21-23   DX - X-DIR INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(8),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   !
+   !  ------------------- BYTE 24-26   DY - Y-DIR INCREMENT
+   !
+   CALL GBYTE (MSGA,KGDS(9),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   !
+   !  ------------------- BYTE 27       PROJECTION CENTER FLAG
+   !
+   CALL GBYTE (MSGA,KGDS(10),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 28      SCANNING MODE
+   !
+   CALL GBYTE (MSGA,KGDS(11),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  ------------------- BYTE 29-31   LATIN1 - 1ST LAT FROM POLE
+   !
+   CALL GBYTE (MSGA,KGDS(12),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(12),8388608).NE.0) THEN
+       KGDS(12)  =  - IAND(KGDS(12),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 32-34   LATIN2 - 2ND LAT FROM POLE
+   !
+   CALL GBYTE (MSGA,KGDS(13),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(13),8388608).NE.0) THEN
+       KGDS(13)  =  - IAND(KGDS(13),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 35-37   LATITUDE OF SOUTHERN POLE
+   !
+   CALL GBYTE (MSGA,KGDS(14),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(14),8388608).NE.0) THEN
+       KGDS(14)  =  - IAND(KGDS(14),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 38-40   LONGITUDE OF SOUTHERN POLE
+   !
+   CALL GBYTE (MSGA,KGDS(15),KPTR(8),24)
+   KPTR(8)  = KPTR(8) + 24
+   IF (IAND(KGDS(15),8388608).NE.0) THEN
+       KGDS(15)  =  - IAND(KGDS(15),8388607)
+   END IF
+   !
+   !  ------------------- BYTE 41-42   RESERVED
+   !
+   CALL GBYTE (MSGA,KGDS(16),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !  -------------------
+  900 CONTINUE
+   !
+   ! MORE CODE FOR GRIDS WITH PL
+   !
+   IF (KGDS(19).EQ.0.OR.KGDS(19).EQ.255) THEN
+     IF (KGDS(20).NE.255) THEN
+       ISUM  = 0
+       KPTR(8)  = NSAVE + (KGDS(20) - 1) * 8
+       CALL GBYTES (MSGA,KGDS(22),KPTR(8),16,0,KGDS(3))
+       DO 910 J = 1, KGDS(3)
+           ISUM  = ISUM + KGDS(21+J)
+  910     CONTINUE
+       KGDS(21)  = ISUM
+     END IF
+   END IF
+   RETURN
+   END
+
+!-----------------------------------------------------------------------
+   SUBROUTINE FI634(MSGA,KPTR,KPDS,KGDS,KBMS,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI634       EXTRACT OR GENERATE BIT MAP FOR OUTPUT
+!   PRGMMR: BILL CAVANAUGH   ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: IF BIT MAP SEC   IS AVAILABLE IN GRIB MESSAGE, EXTRACT
+!   FOR PROGRAM USE, OTHERWISE GENERATE AN APPROPRIATE BIT MAP.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!   91-11-12  CAVANAUGH  MODIFIED SIZE OF ECMWF GRIDS 5 - 8.
+!
+! USAGE:    CALL FI634(MSGA,KPTR,KPDS,KGDS,KBMS,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA       - BUFR MESSAGE
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!     KPDS     - ARRAY CONTAINING PDS ELEMENTS.
+!          (1)   - ID OF CENTER
+!          (2)   - MODEL IDENTIFICATION
+!          (3)   - GRID IDENTIFICATION
+!          (4)   - GDS/BMS FLAG
+!          (5)   - INDICATOR OF PARAMETER
+!          (6)   - TYPE OF LEVEL
+!          (7)   - HEIGHT/PRESSURE , ETC OF LEVEL
+!          (8)   - YEAR OF CENTURY
+!          (9)   - MONTH OF YEAR
+!          (10)  - DAY OF MONTH
+!          (11)  - HOUR OF DAY
+!          (12)  - MINUTE OF HOUR
+!          (13)  - INDICATOR OF FORECAST TIME UNIT
+!          (14)  - TIME RANGE 1
+!          (15)  - TIME RANGE 2
+!          (16)  - TIME RANGE FLAG
+!          (17)  - NUMBER INCLUDED IN AVERAGE
+!
+!   OUTPUT ARGUMENT LIST:
+!     KBMS       - BITMAP DESCRIBING LOCATION OF OUTPUT ELEMENTS.
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!                  SEE INPUT LIST
+!     KRET       - ERROR RETURN
+!
+! REMARKS:
+!     KRET   = 0 - NO ERROR
+!            = 5 - GRID NOT AVAIL FOR CENTER INDICATED
+!            =10 - INCORRECT CENTER INDICATOR
+!            =12 - BYTES 5-6 ARE NOT ZERO IN BMS, PREDEFINED BIT MAP
+!                  NOT PROVIDED BY THIS CENTER
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!
+   !
+   ! INCOMING MESSAGE HOLDER
+   !
+   CHARACTER(len=1)  ::  MSGA(*)
+   !
+   ! BIT MAP
+   !
+   LOGICAL*1         ::  KBMS(*)
+   !
+   ! ARRAY OF POINTERS AND COUNTERS
+   !
+   INTEGER           ::  KPTR(*)
+   !
+   ! ARRAY OF POINTERS AND COUNTERS
+   !
+   INTEGER           ::  KPDS(*)
+   INTEGER           ::  KGDS(*)
+
+   INTEGER           ::  KRET
+   INTEGER           ::  MASK(8)
+   !
+   !  ----------------------GRID 21 AND GRID 22 ARE THE SAME
+   !
+   LOGICAL*1     GRD21( 1369)
+   !
+   !  ----------------------GRID 23 AND GRID 24 ARE THE SAME
+   !
+   LOGICAL*1     GRD23( 1369)
+   LOGICAL*1     GRD25( 1368)
+   LOGICAL*1     GRD26( 1368)
+   !  ----------------------GRID 27 AND GRID 28 ARE THE SAME
+   !  ----------------------GRID 29 AND GRID 30 ARE THE SAME
+   !  ----------------------GRID 33 AND GRID 34 ARE THE SAME
+   LOGICAL*1     GRD50( 1188)
+   !
+   !  -----------------------GRID 61 AND GRID 62 ARE THE SAME
+   !
+   LOGICAL*1     GRD61( 4186)
+   !
+   !  -----------------------GRID 63 AND GRID 64 ARE THE SAME
+   !
+   LOGICAL*1     GRD63( 4186)
+   !
+   !  LOGICAL*1     GRD70(16380)/16380*.TRUE./
+   !  -------------------------------------------------------------
+   SAVE
+   DATA  GRD21 /1333*.TRUE.,36*.FALSE./
+   DATA  GRD23 /.TRUE.,36*.FALSE.,1332*.TRUE./
+   DATA  GRD25 /1297*.TRUE.,71*.FALSE./
+   DATA  GRD26 /.TRUE.,71*.FALSE.,1296*.TRUE./
+   DATA  GRD50/                                                                &
+   ! LINE 1-4
+     7*.FALSE.,22*.TRUE.,14*.FALSE.,22*.TRUE.,                                 &
+    14*.FALSE.,22*.TRUE.,14*.FALSE.,22*.TRUE.,7*.FALSE.,                       &
+   ! LINE 5-8
+     6*.FALSE.,24*.TRUE.,12*.FALSE.,24*.TRUE.,                                 &
+    12*.FALSE.,24*.TRUE.,12*.FALSE.,24*.TRUE.,6*.FALSE.,                       &
+   ! LINE 9-12
+     5*.FALSE.,26*.TRUE.,10*.FALSE.,26*.TRUE.,                                 &
+    10*.FALSE.,26*.TRUE.,10*.FALSE.,26*.TRUE.,5*.FALSE.,                       &
+   ! LINE 13-16
+     4*.FALSE.,28*.TRUE., 8*.FALSE.,28*.TRUE.,                                 &
+     8*.FALSE.,28*.TRUE., 8*.FALSE.,28*.TRUE.,4*.FALSE.,                       &
+   ! LINE 17-20
+     3*.FALSE.,30*.TRUE., 6*.FALSE.,30*.TRUE.,                                 &
+     6*.FALSE.,30*.TRUE., 6*.FALSE.,30*.TRUE.,3*.FALSE.,                       &
+   ! LINE 21-24
+     2*.FALSE.,32*.TRUE., 4*.FALSE.,32*.TRUE.,                                 &
+     4*.FALSE.,32*.TRUE., 4*.FALSE.,32*.TRUE.,2*.FALSE.,                       &
+   ! LINE 25-28
+       .FALSE.,34*.TRUE., 2*.FALSE.,34*.TRUE.,                                 &
+     2*.FALSE.,34*.TRUE., 2*.FALSE.,34*.TRUE.,  .FALSE.,                       &
+   ! LINE 29-33
+              180*.TRUE./
+   DATA  GRD61 /4096*.TRUE.,90*.FALSE./
+   DATA  GRD63 /.TRUE.,90*.FALSE.,4095*.TRUE./
+   DATA  MASK  /128,64,32,16,8,4,2,1/
+!
+!     PRINT *,'FI634'
+   IF (IAND(KPDS(4),64).EQ.64) THEN
+   !
+   !                   SET UP BIT POINTER
+   !                          SECTION 0    SECTION 1     SECTION 2
+   KPTR(8) = KPTR(9) + (KPTR(2)*8) + (KPTR(3)*8) + (KPTR(4)*8) + 24
+   !
+   !  BYTE 4           NUMBER OF UNUSED BITS AT END OF SECTION 3
+   !
+   CALL GBYTE (MSGA,KPTR(11),KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   !
+   !  BYTE 5,6         TABLE REFERENCE IF 0, BIT MAP FOLLOWS
+   !
+   CALL GBYTE (MSGA,KPTR(12),KPTR(8),16)
+   KPTR(8)  = KPTR(8) + 16
+   !
+   !                   IF TABLE REFERENCE = 0, EXTRACT BIT MAP
+   !
+   IF (KPTR(12).EQ.0) THEN
+   !
+   !                   CALCULATE NR OF BITS IN BIT MAP
+   !
+       IBITS   = (KPTR(5) - 6) * 8 - KPTR(11)
+       KPTR(10)  = IBITS
+       IF (KPDS(3).EQ.21.OR.KPDS(3).EQ.22.OR.KPDS(3).EQ.25                     &
+                .OR.KPDS(3).EQ.61.OR.KPDS(3).EQ.62) THEN
+   !
+   !                    NORTHERN HEMISPHERE  21, 22, 25, 61, 62
+   !
+           DO 2122 I = 1, IBITS
+               CALL GBYTE (MSGA,ICHK,KPTR(8),1)
+               KPTR(8)   = KPTR(8) + 1
+               IF (ICHK.NE.0) THEN
+                   KBMS(I)   = .TRUE.
+               ELSE
+                   KBMS(I)   = .FALSE.
+               END IF
+ 2122         CONTINUE
+           IF (KPDS(3).EQ.25) THEN
+               KADD     = 71
+           ELSE IF (KPDS(3).EQ.61.OR.KPDS(3).EQ.62) THEN
+               KADD     = 90
+           ELSE
+               KADD     = 36
+           END IF
+           DO 25 I = 1, KADD
+               KBMS(I+IBITS)  = .FALSE.
+   25         CONTINUE
+           KPTR(10)   = KPTR(10) + KADD
+           RETURN
+       ELSE IF (KPDS(3).EQ.23.OR.KPDS(3).EQ.24.OR.KPDS(3).EQ.26                &
+                .OR.KPDS(3).EQ.63.OR.KPDS(3).EQ.64) THEN
+   !
+   !                    SOUTHERN HEMISPHERE  23, 24, 26, 63, 64
+   !
+           IF (KPDS(3).EQ.26) THEN
+               KADD     = 72
+           ELSE IF (KPDS(3).EQ.63.OR.KPDS(3).EQ.64) THEN
+               KADD     = 91
+           ELSE
+               KADD     = 37
+           END IF
+           DO 26 I = 1, KADD
+               KBMS(I+IBITS)  = .FALSE.
+   26         CONTINUE
+           DO 2324 I = 1, IBITS
+               CALL GBYTE (MSGA,ICHK,KPTR(8),1)
+               KPTR(8)   = KPTR(8) + 1
+               IF (ICHK.NE.0) THEN
+                   KBMS(I)   = .TRUE.
+               ELSE
+                   KBMS(I)   = .FALSE.
+               END IF
+ 2324         CONTINUE
+           KPTR(10)   = KPTR(10) + KADD - 1
+           RETURN
+       ELSE IF (KPDS(3).EQ.50) THEN
+           KPAD    = 7
+           KIN     = 22
+           KBITS   = 0
+           DO 55 I = 1, 7
+               DO 54 J = 1, 4
+                   DO 51 K = 1, KPAD
+                       KBITS   = KBITS + 1
+                       KBMS(KBITS)  = .FALSE.
+   51                 CONTINUE
+                   DO 52 K = 1, KIN
+                       CALL GBYTE (MSGA,ICHK,KPTR(8),1)
+                       KPTR(8)   = KPTR(8) + 1
+                       KBITS     = KBITS + 1
+                       IF (ICHK.NE.0) THEN
+                           KBMS(KBITS)  = .TRUE.
+                       ELSE
+                           KBMS(KBITS)  = .FALSE.
+                       END IF
+   52                 CONTINUE
+                   DO 53 K = 1, KPAD
+                       KBITS   = KBITS + 1
+                       KBMS(KBITS)  = .FALSE.
+   53                 CONTINUE
+   54             CONTINUE
+               KIN    = KIN + 2
+               KPAD   = KPAD - 1
+   55         CONTINUE
+           DO 57 II = 1, 5
+               DO 56 J = 1, KIN
+                   CALL GBYTE (MSGA,ICHK,KPTR(8),1)
+                   KPTR(8)  = KPTR(8) + 1
+                   KBITS    = KBITS + 1
+                   IF (ICHK.NE.0) THEN
+                       KBMS(KBITS)  = .TRUE.
+                   ELSE
+                       KBMS(KBITS)  = .FALSE.
+                   END IF
+   56             CONTINUE
+   57         CONTINUE
+       ELSE
+           !
+           ! EXTRACT BIT MAP FROM BMS FOR OTHER GRIDS
+           !
+           DO 100 I = 1, IBITS
+               CALL GBYTE (MSGA,ICHK,KPTR(8),1)
+               KPTR(8)  = KPTR(8) + 1
+               IF (ICHK.NE.0) THEN
+                   KBMS(I) = .TRUE.
+               ELSE
+                   KBMS(I) = .FALSE.
+               END IF
+  100         CONTINUE
+       END IF
+       RETURN
+     ELSE
+       PRINT *,'FI634-NO PREDEFINED BIT MAP PROVIDED BY THIS CENTER'
+       KRET = 12
+       RETURN
+     END IF
+
+   END IF
+   KRET = 0
+!  -------------------------------------------------------
+!                   PROCESS NON-STANDARD GRID
+!  -------------------------------------------------------
+   IF (KPDS(3).EQ.255) THEN
+!         PRINT *,'NON STANDARD GRID, CENTER = ',KPDS(1)
+       J      = KGDS(2) * KGDS(3)
+       KPTR(10) = J
+       DO 600 I = 1, J
+           KBMS(I) = .TRUE.
+  600     CONTINUE
+       RETURN
+   END IF
+!  -------------------------------------------------------
+!                   CHECK INTERNATIONAL SET
+!  -------------------------------------------------------
+   IF (KPDS(3).EQ.21.OR.KPDS(3).EQ.22) THEN
+       !
+       ! ----- INT'L GRIDS 21, 22 - MAP SIZE 1369
+       !
+       J   = 1369
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3021 I = 1, 1369
+           KBMS(I) = GRD21(I)
+ 3021     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).EQ.23.OR.KPDS(3).EQ.24) THEN
+       !
+       ! ----- INT'L GRIDS 23, 24 - MAP SIZE 1369
+       !
+       J   = 1369
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3023 I = 1, 1369
+           KBMS(I) = GRD23(I)
+ 3023     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).EQ.25) THEN
+       !
+       ! ----- INT'L GRID 25 - MAP SIZE 1368
+       !
+       J   = 1368
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3025 I = 1, 1368
+           KBMS(I) = GRD25(I)
+ 3025     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).EQ.26) THEN
+       !
+       ! ----- INT'L GRID  26 - MAP SIZE 1368
+       !
+       J   = 1368
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3026 I = 1, 1368
+           KBMS(I) = GRD26(I)
+ 3026     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+       !
+       ! ----- INT'L GRID  37-44 - MAP SIZE 3447
+       !
+       J   = 3447
+       GO TO 800
+   ELSE IF (KPDS(1).EQ.7.AND.KPDS(3).EQ.50) THEN
+       !
+       ! ----- INT'L GRIDS 50 - MAP SIZE 964
+       !
+       J     = 1188
+       KPTR(10)  = J
+       CALL FI637(*890,J,KPDS,KGDS,KRET)
+       DO 3050 I = 1, J
+           KBMS(I) = GRD50(I)
+ 3050     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).EQ.61.OR.KPDS(3).EQ.62) THEN
+       !
+       ! ----- INT'L GRIDS 61, 62 - MAP SIZE 4186
+       !
+       J     = 4186
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3061 I = 1, 4186
+           KBMS(I) = GRD61(I)
+ 3061     CONTINUE
+       RETURN
+   ELSE IF (KPDS(3).EQ.63.OR.KPDS(3).EQ.64) THEN
+       !
+       ! ----- INT'L GRIDS 63, 64 - MAP SIZE 4186
+       !
+       J     = 4186
+       KPTR(10)  = J
+       CALL FI637(*820,J,KPDS,KGDS,KRET)
+       DO 3063 I = 1, 4186
+           KBMS(I) = GRD63(I)
+ 3063     CONTINUE
+       RETURN
+   END IF
+   !  -------------------------------------------------------
+   !                   CHECK UNITED STATES SET
+   !  -------------------------------------------------------
+   IF (KPDS(1).EQ.7) THEN
+       IF (KPDS(3).LT.100) THEN
+           IF (KPDS(3).EQ.1) THEN
+               !
+               ! ----- U.S. GRID 1 - MAP SIZE 1679
+               !
+               J   = 1679
+               GO TO 800
+           END IF
+           IF (KPDS(3).EQ.2) THEN
+               !
+               ! ----- U.S. GRID 2 - MAP SIZE 10512
+               !
+               J   = 10512
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.3) THEN
+               !
+               ! ----- U.S. GRID 3 - MAP SIZE 65160
+               !
+               J   = 65160
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.4) THEN
+               !
+               ! ----- U.S. GRID 4 - MAP SIZE 259920
+               !
+               J   = 259920
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.5) THEN
+               !
+               ! ----- U.S. GRID 5 - MAP SIZE 3021
+               !
+               J   = 3021
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.6) THEN
+               !
+               ! ----- U.S. GRID 6 - MAP SIZE 2385
+               !
+               J   = 2385
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.27.OR.KPDS(3).EQ.28) THEN
+               !
+               ! ----- U.S. GRIDS 27, 28 - MAP SIZE 4225
+               !
+               J     = 4225
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.29.OR.KPDS(3).EQ.30) THEN
+               !
+               ! ----- U.S. GRIDS 29,30 - MAP SIZE 5365
+               !
+               J     = 5365
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.33.OR.KPDS(3).EQ.34) THEN
+               !
+               ! ----- U.S GRID 33, 34 - MAP SIZE 8326
+               !
+               J     = 8326
+               GO TO 800
+           ELSE IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+               !
+               ! -----  U.S. GRID  37-44 - MAP SIZE 3447
+               !
+               J   = 3447
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.45) THEN
+               !
+               ! ----- U.S.  GRID  45    - MAP SIZE 41760
+               !
+               J   = 41760
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.55.OR.KPDS(3).EQ.56) THEN
+               !
+               ! ----- U.S GRID 55, 56 - MAP SIZE 6177
+               !
+               J     = 6177
+               GO TO 800
+           ELSE IF (KPDS(3).GE.67.AND.KPDS(3).LE.71) THEN
+               !
+               ! ----- U.S GRID 67-71 - MAP SIZE 13689
+               !
+               J     = 13689
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.72) THEN
+               !
+               ! ----- U.S GRID    72 - MAP SIZE 406
+               !
+               J     = 406
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.73) THEN
+               !
+               ! ----- U.S GRID    73 - MAP SIZE 13056
+               !
+               J     = 13056
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.74) THEN
+               !
+               ! ----- U.S GRID    74 - MAP SIZE 10800
+               !
+               J     = 10800
+               GO TO 800
+           ELSE IF (KPDS(3).GE.75.AND.KPDS(3).LE.77) THEN
+               !
+               ! ----- U.S GRID 75-77 - MAP SIZE 12321
+               !
+               J     = 12321
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.85.OR.KPDS(3).EQ.86) THEN
+               !
+               ! ----- U.S GRID 85,86 - MAP SIZE 32400
+               !
+               J     = 32400
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.87) THEN
+               !
+               ! ----- U.S GRID 87     - MAP SIZE 5022
+               !
+               J     = 5022
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.90) THEN
+               !
+               ! ----- U.S GRID 90     - MAP SIZE 12902
+               !
+               J     = 12902
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.91) THEN
+               !
+               ! ----- U.S GRID 91     - MAP SIZE 25803
+               !
+               J     = 25803
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.92) THEN
+               !
+               ! ----- U.S GRID 92     - MAP SIZE 24162
+               !
+               J     = 24162
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.93) THEN
+               !
+               ! ----- U.S GRID 93     - MAP SIZE 48323
+               !
+               J     = 48323
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.94) THEN
+               !
+               ! ----- U.S GRID 94     - MAP SIZE 48916
+               !
+               J     = 48916
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.95) THEN
+               !
+               ! ----- U.S GRID 95     - MAP SIZE 97831
+               !
+               J     = 97831
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.96) THEN
+               !
+               ! ----- U.S GRID 96     - MAP SIZE 41630
+               !
+               J     = 41630
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.97) THEN
+               !
+               ! ----- U.S GRID 97     - MAP SIZE 83259
+               !
+               J     = 83259
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.98) THEN
+               !
+               ! ----- U.S GRID 98     - MAP SIZE 18048
+               !
+               J     = 18048
+               GO TO 800
+           END IF
+       ELSE IF (KPDS(3).GE.100.AND.KPDS(3).LT.200) THEN
+           IF (KPDS(3).EQ.100) THEN
+               !
+               ! ----- U.S. GRID 100 - MAP SIZE 6889
+               !
+               J     = 6889
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.101) THEN
+               !
+               ! ----- U.S. GRID 101 - MAP SIZE 10283
+               !
+               J     = 10283
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.103) THEN
+               !
+               ! ----- U.S. GRID 103 - MAP SIZE 3640
+               !
+               J     = 3640
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.104) THEN
+               !
+               ! ----- U.S. GRID 104 - MAP SIZE 16170
+               !
+               J     = 16170
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.105) THEN
+               !
+               ! ----- U.S. GRID 105 - MAP SIZE 6889
+               !
+               J     = 6889
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.106) THEN
+               !
+               ! ----- U.S. GRID 106 - MAP SIZE 19305
+               !
+               J     = 19305
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.107) THEN
+               !
+               ! ----- U.S. GRID 107 - MAP SIZE 11040
+               !
+               J     = 11040
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.126) THEN
+               !
+               ! ----- U.S. GRID 126 - MAP SIZE 72960
+               !
+               J     = 72960
+               GO TO 800
+           ELSE IF (IAND(KPDS(4),128).EQ.128) THEN
+               !
+               ! ----- U.S. NON-STANDARD GRID
+               !
+               GO TO 895
+           END IF
+       ELSE IF (KPDS(3).GE.200) THEN
+           IF (KPDS(3).EQ.201) THEN
+               J = 4225
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.202) THEN
+               J = 2795
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.203.OR.KPDS(3).EQ.205) THEN
+               J = 1755
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.204) THEN
+               J = 6324
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.206) THEN
+               J = 2091
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.207) THEN
+               J = 1715
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.208) THEN
+               J = 783
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.209) THEN
+               J = 8181
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.210) THEN
+               J = 625
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.211) THEN
+               J = 6045
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.212) THEN
+               J = 23865
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.213) THEN
+               J = 10965
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.214) THEN
+               J = 6693
+               GO TO 800
+           ELSE IF (KPDS(3).EQ.215) THEN
+               J = 94833
+               GO TO 800
+           ELSE IF (IAND(KPDS(4),128).EQ.128) THEN
+               GO TO 895
+           END IF
+           KRET  = 5
+           RETURN
+       END IF
+   END IF
+!  -------------------------------------------------------
+!                   CHECK JAPAN METEOROLOGICAL AGENCY SET
+!  -------------------------------------------------------
+   IF (KPDS(1).EQ.34) THEN
+       IF (IAND(KPDS(4),128).EQ.128) THEN
+           PRINT *,'JMA MAP IS NOT PREDEFINED, THE GDS WILL'
+           PRINT *,'BE USED TO UNPACK THE DATA, MAP = ',KPDS(3)
+           GO TO 900
+       END IF
+   END IF
+!  -------------------------------------------------------
+!                   CHECK CANADIAN SET
+!  -------------------------------------------------------
+   IF (KPDS(1).EQ.54) THEN
+       IF (IAND(KPDS(4),128).EQ.128) THEN
+           PRINT *,'CANADIAN MAP IS NOT PREDEFINED, THE GDS WILL'
+           PRINT *,'BE USED TO UNPACK THE DATA, MAP = ',KPDS(3)
+           GO TO 900
+       END IF
+   END IF
+!  -------------------------------------------------------
+!                   CHECK FNOC SET
+!  -------------------------------------------------------
+   IF (KPDS(1).EQ.58) THEN
+       IF (KPDS(3).EQ.220.OR.KPDS(3).EQ.221) THEN
+           !
+           ! FNOC GRID 220, 221 - MAPSIZE 3969 (63 * 63)
+           !
+           J  = 3969
+           KPTR(10)  = J
+           DO I = 1, J
+               KBMS(I)  = .TRUE.
+           END DO
+           RETURN
+       END IF
+       IF (KPDS(3).EQ.223) THEN
+           !
+           ! FNOC GRID 223 - MAPSIZE 10512 (73 * 144)
+           !
+           J  = 10512
+           KPTR(10)  = J
+           DO I = 1, J
+               KBMS(I)  = .TRUE.
+           END DO
+           RETURN
+       END IF
+       IF (IAND(KPDS(4),128).EQ.128) THEN
+           PRINT *,'FNOC MAP IS NOT PREDEFINED, THE GDS WILL'
+           PRINT *,'BE USED TO UNPACK THE DATA, MAP = ',KPDS(3)
+           GO TO 900
+       END IF
+   END IF
+!  -------------------------------------------------------
+!                   CHECK UKMET SET
+!  -------------------------------------------------------
+   IF (KPDS(1).EQ.74) THEN
+       IF (IAND(KPDS(4),128).EQ.128) THEN
+           GO TO 820
+       END IF
+   END IF
+!  -------------------------------------------------------
+!                   CHECK ECMWF SET
+!  -------------------------------------------------------
+   IF (KPDS(1).EQ.98) THEN
+       IF (KPDS(3).GE.1.AND.KPDS(3).LE.12) THEN
+           IF (KPDS(3).GE.5.AND.KPDS(3).LE.8) THEN
+               J     = 1073
+           ELSE
+               J     = 1369
+           END IF
+           KPTR(10)  = J
+           CALL FI637(*810,J,KPDS,KGDS,KRET)
+           DO 1000 I = 1, J
+               KBMS(I) = .TRUE.
+ 1000         CONTINUE
+           RETURN
+       ELSE IF (KPDS(3).GE.13.AND.KPDS(3).LE.16) THEN
+           J         = 361
+           KPTR(10)  = J
+           CALL FI637(*810,J,KPDS,KGDS,KRET)
+           DO 1013 I = 1, J
+               KBMS(I) = .TRUE.
+ 1013         CONTINUE
+           RETURN
+       ELSE IF (IAND(KPDS(4),128).EQ.128) THEN
+               GO TO 810
+       ELSE
+           KRET  = 5
+           RETURN
+       END IF
+   ELSE
+!         PRINT *,'CENTER ',KPDS(1),' IS NOT DEFINED'
+       IF (IAND(KPDS(4),128).EQ.128) THEN
+!          PRINT *,'GDS WILL BE USED TO UNPACK THE DATA',
+!    *                        ' MAP = ',KPDS(3)
+           GO TO 900
+       ELSE
+           KRET  = 10
+           RETURN
+       END IF
+   END IF
+! =======================================
+!
+  800 CONTINUE
+   KPTR(10)  = J
+   CALL FI637 (*801,J,KPDS,KGDS,KRET)
+   DO 2201 I = 1, J
+       KBMS(I)  = .TRUE.
+ 2201 CONTINUE
+   RETURN
+  801 CONTINUE
+!
+!  ----- THE MAP HAS A GDS, BYTE 7 OF THE (PDS) THE GRID IDENTIFICATION
+!  ----- IS NOT 255, THE SIZE OF THE GRID IS NOT THE SAME AS THE
+!  ----- PREDEFINED SIZES OF THE U.S. GRIDS, OR KNOWN GRIDS OF THE
+!  ----- OF THE OTHER CENTERS. THE GRID CAN BE UNKNOWN, OR FROM AN
+!  ----- UNKNOWN CENTER, WE WILL USE THE INFORMATION IN THE GDS TO MAKE
+!  ----- A BIT MAP.
+!
+  810 CONTINUE
+   PRINT *,'ECMWF PREDEFINED MAP SIZE DOES NOT MATCH, I WILL USE'
+   GO TO 895
+
+  820 CONTINUE
+   PRINT *,'U.K. MET PREDEFINED MAP SIZE DOES NOT MATCH, I WILL USE'
+   GO TO 895
+
+  890 CONTINUE
+   PRINT *,'PREDEFINED MAP SIZE DOES NOT MATCH, I WILL USE'
+  895 CONTINUE
+   PRINT *,'THE GDS TO UNPACK THE DATA, MAP TYPE = ',KPDS(3)
+
+  900 CONTINUE
+     J      = KGDS(2) * KGDS(3)
+!                    AFOS AFOS AFOS        SPECIAL CASE
+!                             INVOLVES NEXT SINGLE STATEMENT ONLY
+     IF (KPDS(3).EQ.211) KRET = 0
+     KPTR(10) = J
+     DO 2203 I = 1, J
+       KBMS(I) = .TRUE.
+ 2203   CONTINUE
+!     PRINT *,'EXIT FI634'
+   RETURN
+   END
+
+!------------------------------------------------------------------------
+   SUBROUTINE FI635(MSGA,KPTR,KPDS,KGDS,KBMS,DATA,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI635         EXTRACT GRIB DATA ELEMENTS FROM BDS
+!   PRGMMR: BILL CAVANAUGH   ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: EXTRACT GRIB DATA FROM BINARY DATA SECTION AND PLACE
+!           INTO OUTPUT ARRAY IN PROPER POSITION.
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!   94-04-01  CAVANAUGH  MODIFIED CODE TO INCLUDE DECIMAL SCALING WHEN
+!                        CALCULATING THE VALUE OF DATA POINTS SPECIFIED
+!                        AS BEING EQUAL TO THE REFERENCE VALUE
+!   94-11-10  FARLEY     INCREASED MXSIZE FROM 72960 TO 260000
+!                        FOR .5 DEGREE SST ANALYSIS FIELDS
+!
+! USAGE:    CALL FI635(MSGA,KPTR,KPDS,KGDS,KBMS,DATA,KRET)
+!   INPUT ARGUMENT LIST:
+!     MSGA       - ARRAY CONTAINING GRIB MESSAGE
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!          (1)   - TOTAL LENGTH OF GRIB MESSAGE
+!          (2)   - LENGTH OF INDICATOR (SECTION  0)
+!          (3)   - LENGTH OF PDS       (SECTION  1)
+!          (4)   - LENGTH OF GDS       (SECTION  2)
+!          (5)   - LENGTH OF BMS       (SECTION  3)
+!          (6)   - LENGTH OF BDS       (SECTION  4)
+!          (7)   - VALUE OF CURRENT BYTE
+!          (8)   - BIT POINTER
+!          (9)   - GRIB START BIT NR
+!         (10)   - GRIB/GRID ELEMENT COUNT
+!         (11)   - NR UNUSED BITS AT END OF SECTION 3
+!         (12)   - BIT MAP FLAG
+!         (13)   - NR UNUSED BITS AT END OF SECTION 2
+!         (14)   - BDS FLAGS
+!         (15)   - NR UNUSED BITS AT END OF SECTION 4
+!     KPDS     - ARRAY CONTAINING PDS ELEMENTS.
+!                  SEE INITIAL ROUTINE
+!     KBMS       - BITMAP DESCRIBING LOCATION OF OUTPUT ELEMENTS.
+!
+!   OUTPUT ARGUMENT LIST:
+!     KBDS       - INFORMATION EXTRACTED FROM BINARY DATA SECTION
+!     KBDS(1)  - N1
+!     KBDS(2)  - N2
+!     KBDS(3)  - P1
+!     KBDS(4)  - P2
+!     KBDS(5)  - BIT POINTER TO 2ND ORDER WIDTHS
+!     KBDS(6)  -  "    "     "   "   "    BIT MAPS
+!     KBDS(7)  -  "    "     "  FIRST ORDER VALUES
+!     KBDS(8)  -  "    "     "  SECOND ORDER VALUES
+!     KBDS(9)  -  "    "     START OF BDS
+!     KBDS(10) -  "    "     MAIN BIT MAP
+!     KBDS(11) - BINARY SCALING
+!     KBDS(12) - DECIMAL SCALING
+!     KBDS(13) - BIT WIDTH OF FIRST ORDER VALUES
+!     KBDS(14) - BIT MAP FLAG
+!                 0 = NO SECOND ORDER BIT MAP
+!                 1 = SECOND ORDER BIT MAP PRESENT
+!     KBDS(15) - SECOND ORDER BIT WIDTH
+!     KBDS(16) - CONSTANT / DIFFERENT WIDTHS
+!                 0 = CONSTANT WIDTHS
+!                 1 = DIFFERENT WIDTHS
+!     KBDS(17) - SINGLE DATUM / MATRIX
+!                 0 = SINGLE DATUM AT EACH GRID POINT
+!                 1 = MATRIX OF VALUES AT EACH GRID POINT
+!       (18-20)- UNUSED
+!
+!     DATA       - REAL*4 ARRAY OF GRIDDED ELEMENTS IN GRIB MESSAGE.
+!     KPTR       - ARRAY CONTAINING STORAGE FOR FOLLOWING PARAMETERS
+!                  SEE INPUT LIST
+!     KRET       - ERROR RETURN
+!
+! REMARKS:
+!     ERROR RETURN
+!              3 = UNPACKED FIELD IS LARGER THAN 65160
+!              6 = DOES NOT MATCH NR OF ENTRIES FOR THIS GRIB/GRID
+!              7 = NUMBER OF BITS IN FILL TOO LARGE
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS9000
+!
+!$$$
+!  *************************************************************
+!       ON A PC THIS CAN BE CHANGED TO A SMALLER SIZE TO BETTER FIT
+!       THE DOS MEMORY LIMIT OF 640K BYTES.  YOU COULD DO THIS
+!       FOR MICROSOFT 5.0.  A PC 32 BIT FORTRAN COMPILER
+!       WOULD NOT NEED THIS CHANGE.  IF NONE OF YOUR GRIB RECORDS
+!       IS LARGER THAN 20000, SET MXSIZE TO 20000.
+!  *************************************************************
+!
+!  PARAMETER      ::  MXSIZE=2600000
+
+   CHARACTER(len=1)     ::  MSGA(*)
+   CHARACTER(len=1)     ::  KK(8)
+   CHARACTER(len=1)     ::  CKREF(8)
+
+   LOGICAL*1            ::  KBMS(*)
+
+   INTEGER              ::  KPDS(*)
+   INTEGER              ::  KGDS(*)
+   INTEGER              ::  KBDS(20)
+   INTEGER              ::  KPTR(*)
+   INTEGER              ::  NRBITS
+   INTEGER              ::  KREF
+   INTEGER              ::  KKK
+   INTEGER,ALLOCATABLE  ::  KSAVE(:)
+   INTEGER              ::  KSCALE
+
+   REAL                 ::  DATA(*)
+   REAL                 ::  REFNCE
+   REAL                 ::  SCALE
+   REAL                 ::  REALKK
+
+   EQUIVALENCE   (CKREF(1),KREF,REFNCE)
+   EQUIVALENCE   (KK(1),KKK,REALKK)
+
+!
+!     CHANGED HEX VALUES TO DECIMAL TO MAKE CODE MORE PORTABLE
+!
+!  *************************************************************
+   SAVE
+!     PRINT *,'ENTER FI635'
+!              SET UP BIT POINTER
+   KPTR(8) = KPTR(9) + (KPTR(2)*8) + (KPTR(3)*8) + (KPTR(4)*8)                 &
+                   + (KPTR(5)*8) + 24
+!  ------------- EXTRACT FLAGS
+!            BYTE 4
+   CALL GBYTE(MSGA,KPTR(14),KPTR(8),4)
+   KPTR(8)  = KPTR(8) + 4
+!  --------- NR OF UNUSED BITS IN SECTION 4
+   CALL GBYTE(MSGA,KPTR(15),KPTR(8),4)
+   KPTR(8)  = KPTR(8) + 4
+   KEND    = KPTR(9) + (KPTR(2)*8) + (KPTR(3)*8) + (KPTR(4)*8)                 &
+                   + (KPTR(5)*8) + KPTR(6) * 8 - KPTR(15)
+!  ------------- GET SCALE FACTOR
+!            BYTES 5,6
+!                                  CHECK SIGN
+   CALL GBYTE (MSGA,KSIGN,KPTR(8),1)
+   KPTR(8)  = KPTR(8) + 1
+!                                  GET ABSOLUTE SCALE VALUE
+   CALL GBYTE (MSGA,KSCALE,KPTR(8),15)
+   KPTR(8)  = KPTR(8) + 15
+   IF (KSIGN.GT.0) THEN
+       KSCALE  = - KSCALE
+   END IF
+   SCALE = 2.0**KSCALE
+!  ------------ GET REFERENCE VALUE
+!            BYTES 7,10
+   CALL GBYTE (MSGA,KREF,KPTR(8),32)
+   KPTR(8)  = KPTR(8) + 32
+!
+!     THE NEXT CODE WILL CONVERT THE IBM370 FLOATING POINT
+!     TO THE FLOATING POINT USED ON YOUR COMPUTER.
+!
+!     1ST TEST TO SEE IN ON 32 OR 64 BIT WORD MACHINE
+!     LW = 4 OR 8;  IF 8 MAY BE A CRAY
+!
+   CALL W3FI01(LW)
+   IF (LW.EQ.4) THEN
+     CALL SWAP32(KREF,1)
+     CALL GBYTE (CKREF,JSGN,0,1)
+     CALL GBYTE (CKREF,JEXP,1,7)
+     CALL GBYTE (CKREF,IFR,8,24)
+   ELSE
+     CALL SWAP32(KREF,2)
+     CALL GBYTE (CKREF,JSGN,32,1)
+     CALL GBYTE (CKREF,JEXP,33,7)
+     CALL GBYTE (CKREF,IFR,40,24)
+   ENDIF
+!     PRINT *,109,JSGN,JEXP,IFR
+! 109 FORMAT (' JSGN,JEXP,IFR = ',3(1X,Z8))
+   IF (IFR.EQ.0) THEN
+       REFNCE  = 0.0
+   ELSE IF (JEXP.EQ.0.AND.IFR.EQ.0) THEN
+       REFNCE  = 0.0
+   ELSE
+       REFNCE  = FLOAT(IFR) * 16.0 ** (JEXP - 64 - 6)
+       IF (JSGN.NE.0) REFNCE = - REFNCE
+   END IF
+!     PRINT *,'SCALE ',SCALE,' REF VAL ',KREF,REFNCE
+!  ------------- NUMBER OF BITS SPECIFIED FOR EACH ENTRY
+!            BYTE 11
+   CALL GBYTE (MSGA,KBITS,KPTR(8),8)
+   KPTR(8)  = KPTR(8) + 8
+   KBDS(4)  = KBITS
+!     KBDS(13) = KBITS
+   IBYT12   = KPTR(8)
+!  ------------------ IF THERE ARE NO EXTENDED FLAGS PRESENT
+!                     THIS IS WHERE DATA BEGINS AND AND THE PROCESSING
+!                     INCLUDED IN THE FOLLOWING IF...END IF
+!                     WILL BE SKIPPED
+!     PRINT *,'BASIC FLAGS =',KPTR(14) ,IAND(KPTR(14),1)
+   IF (IAND(KPTR(14),1).EQ.0) THEN
+!         PRINT *,'NO EXTENDED FLAGS'
+   ELSE
+!            BYTES 12,13
+       CALL GBYTE (MSGA,KOCTET,KPTR(8),16)
+       KPTR(8)  = KPTR(8) + 16
+!  --------------------------- EXTENDED FLAGS
+!            BYTE 14
+       CALL GBYTE (MSGA,KXFLAG,KPTR(8),8)
+!         PRINT *,'HAVE EXTENDED FLAGS',KXFLAG
+       KPTR(8)  = KPTR(8) + 8
+       IF (IAND(KXFLAG,16).EQ.0) THEN
+!                          SECOND ORDER VALUES CONSTANT WIDTHS
+           KBDS(16)  = 0
+       ELSE
+!                          SECOND ORDER VALUES DIFFERENT WIDTHS
+           KBDS(16)  = 1
+       END IF
+       IF (IAND (KXFLAG,32).EQ.0) THEN
+!                         NO SECONDARY BIT MAP
+           KBDS(14)  = 0
+       ELSE
+!                         HAVE SECONDARY BIT MAP
+           KBDS(14)  = 1
+       END IF
+       IF (IAND (KXFLAG,64).EQ.0) THEN
+!                         SINGLE DATUM AT GRID POINT
+           KBDS(17)  = 0
+       ELSE
+!                         MATRIX OF VALUES AT GRID POINT
+           KBDS(17)  = 1
+       END IF
+!  ---------------------- NR - FIRST DIMENSION (ROWS) OF EACH MATRIX
+!            BYTES 15,16
+       CALL GBYTE (MSGA,NR,KPTR(8),16)
+       KPTR(8)  = KPTR(8) + 16
+!  ---------------------- NC - SECOND DIMENSION (COLS) OF EACH MATRIX
+!            BYTES 17,18
+       CALL GBYTE (MSGA,NC,KPTR(8),16)
+       KPTR(8)  = KPTR(8) + 16
+!  ---------------------- NRV - FIRST DIM COORD VALS
+!            BYTE 19
+       CALL GBYTE (MSGA,NRV,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!  ---------------------- NC1 - NR COEFF'S OR VALUES
+!            BYTE 20
+       CALL GBYTE (MSGA,NC1,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!  ---------------------- NCV - SECOND DIM COORD OR VALUE
+!            BYTE 21
+       CALL GBYTE (MSGA,NCV,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!  ---------------------- NC2 - NR COEFF'S OR VALS
+!            BYTE 22
+       CALL GBYTE (MSGA,NC2,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!  ---------------------- KPHYS1 - FIRST DIM PHYSICAL SIGNIF
+!            BYTE 23
+       CALL GBYTE (MSGA,KPHYS1,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!  ---------------------- KPHYS2 - SECOND DIM PHYSICAL SIGNIF
+!            BYTE 24
+       CALL GBYTE (MSGA,KPHYS2,KPTR(8),8)
+       KPTR(8)  = KPTR(8) + 8
+!            BYTES 25-N
+   END IF
+   IF (KBITS.EQ.0) THEN
+!                       HAVE NO BDS ENTRIES, ALL ENTRIES = REFNCE
+       SCAL10  = 10.0 ** KPDS(22)
+       SCAL10  = 1.0 / SCAL10
+       REFN10  = REFNCE * SCAL10
+       KENTRY = KPTR(10)
+       DO 210 I = 1, KENTRY
+           DATA(I) = 0.0
+           IF (KBMS(I)) THEN
+                DATA(I) = REFN10
+           END IF
+  210     CONTINUE
+       GO TO 900
+   END IF
+!     PRINT *,'KEND ',KEND,' KPTR(8) ',KPTR(8),'KBITS ',KBITS
+   KNR     = (KEND - KPTR(8)) / KBITS
+!     PRINT *,'NUMBER OF ENTRIES IN DATA ARRAY',KNR
+!  --------------------
+!       CYCLE THRU BDS UNTIL HAVE USED ALL (SPECIFIED NUMBER)
+!       ENTRIES.
+!  ------------- UNUSED BITS IN DATA AREA
+! NUMBER OF BYTES IN DATA AREA
+   NRBYTE  = KPTR(6) - 11
+!  ------------- TOTAL NR OF USABLE BITS
+   NRBITS  = NRBYTE * 8  - KPTR(15)
+!  ------------- TOTAL NR OF ENTRIES
+   KENTRY  = NRBITS / KBITS
+!                             MAX SIZE CHECK
+   ALLOCATE(KSAVE(KENTRY))
+!   IF (KENTRY.GT.MXSIZE) THEN
+!       KRET   = 3
+!       RETURN
+!   END IF
+!
+!     IF (IAND(KPTR(14),2).EQ.0) THEN
+!        PRINT *,'SOURCE VALUES IN FLOATING POINT'
+!     ELSE
+!        PRINT *,'SOURCE VALUES IN INTEGER'
+!     END IF
+!
+   IF (IAND(KPTR(14),8).EQ.0) THEN
+!        PRINT *,'PROCESSING GRID POINT DATA'
+      IF (IAND(KPTR(14),4).EQ.0) THEN
+!            PRINT *,'    WITH SIMPLE PACKING'
+          IF (IAND(KPTR(14),1).EQ.0) THEN
+!                PRINT *,'        WITH NO ADDITIONAL FLAGS'
+              GO TO 4000
+          ELSE IF (IAND(KPTR(14),1).NE.0) THEN
+              PRINT *,'        WITH ADDITIONAL FLAGS',KXFLAG
+              IF (KBDS(17).EQ.0) THEN
+                  PRINT *,'            SINGLE DATUM EACH GRID PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                             ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                               ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                           PRINT *,'            SECOND ORDER',                 &
+                                 ' VALUES CONSTANT WIDTH'                      
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES DIFFERENT WIDTHS'                     
+                      END IF
+                  END IF
+              ELSE IF (KBDS(17).NE.0) THEN
+                  PRINT *,'            MATRIX OF VALS EACH PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                             ' VALUES CONSTANT WIDTH'                          
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'                    
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES CONSTANT WIDTH'                       
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES DIFFERENT WIDTHS'                     
+                      END IF
+                  END IF
+              END IF
+          END IF
+      ELSE IF (IAND(KPTR(14),4).NE.0) THEN
+          PRINT *,'    WITH COMPLEX/SECOND ORDER PACKING'
+          IF (IAND(KPTR(14),1).EQ.0) THEN
+                  PRINT *,'        WITH NO ADDITIONAL FLAGS'
+          ELSE IF (IAND(KPTR(14),1).NE.0) THEN
+              PRINT *,'        WITH ADDITIONAL FLAGS'
+              IF (KBDS(17).EQ.0) THEN
+                  PRINT *,'            SINGLE DATUM AT EACH PT'
+                  IF (KBDS(14).EQ.0) THEN
+                          PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN                             
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+!                                       ROW BY ROW - COL BY COL
+                      CALL FI636 (DATA,MSGA,KBMS,                              &
+                                            REFNCE,KPTR,KPDS,KGDS)
+                      GO TO 900
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                              PRINT *,'            SECOND ORDER',              &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                              PRINT *,'            SECOND ORDER',              &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                      CALL FI636 (DATA,MSGA,KBMS,                              &
+                                            REFNCE,KPTR,KPDS,KGDS)
+                      GO TO 900
+                  END IF
+              ELSE IF (KBDS(17).NE.0) THEN
+                  PRINT *,'            MATRIX OF VALS EACH PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                            PRINT *,'            SECOND ORDER',                & 
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                            PRINT *,'            SECOND ORDER',                &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN                             
+                              PRINT *,'            SECOND ORDER',              &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  END IF
+              END IF
+          END IF
+      END IF
+   ELSE IF (IAND(KPTR(14),8).NE.0) THEN
+      PRINT *,'PROCESSING SPHERICAL HARMONIC COEFFICIENTS'
+      IF (IAND(KPTR(14),4).EQ.0) THEN
+          PRINT *,'    WITH SIMPLE PACKING'
+          IF (IAND(KPTR(14),1).EQ.0) THEN
+              PRINT *,'        WITH NO ADDITIONAL FLAGS'
+              GO TO 5000
+          ELSE IF (IAND(KPTR(14),1).NE.0) THEN
+              PRINT *,'        WITH ADDITIONAL FLAGS'
+              IF (KBDS(17).EQ.0) THEN
+                  PRINT *,'            SINGLE DATUM EACH GRID PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                               ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  END IF
+              ELSE IF (KBDS(17).NE.0) THEN
+                  PRINT *,'            MATRIX OF VALS EACH PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  END IF
+              END IF
+          END IF
+      ELSE IF (IAND(KPTR(14),4).NE.0) THEN
+!                                  COMPLEX/SECOND ORDER PACKING
+          PRINT *,'    WITH COMPLEX/SECOND ORDER PACKING'
+          IF (IAND(KPTR(14),1).EQ.0) THEN
+              PRINT *,'        WITH NO ADDITIONAL FLAGS'
+          ELSE IF (IAND(KPTR(14),1).NE.0) THEN
+              PRINT *,'        WITH ADDITIONAL FLAGS'
+              IF (KBDS(17).EQ.0) THEN
+                  PRINT *,'            SINGLE DATUM EACH GRID PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  & 
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  END IF
+              ELSE IF (KBDS(17).NE.0) THEN
+                  PRINT *,'            MATRIX OF VALS EACH PT'
+                  IF (KBDS(14).EQ.0) THEN
+                      PRINT *,'            NO SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                               ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  ELSE IF (KBDS(14).NE.0) THEN
+                      PRINT *,'            SEC BIT MAP'
+                      IF (KBDS(16).EQ.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES CONSTANT WIDTH'
+                      ELSE IF (KBDS(16).NE.0) THEN
+                          PRINT *,'            SECOND ORDER',                  &
+                                 ' VALUES DIFFERENT WIDTHS'
+                      END IF
+                  END IF
+              END IF
+          END IF
+      END IF
+   END IF
+   PRINT *,' NOT PROCESSED - NOT PROCESSED - NOT PROCESSED'
+   KRET   = 11
+   RETURN
+ 4000 CONTINUE
+!  ****************************************************************
+!
+! GRID POINT DATA, SIMPLE PACKING, FLOATING POINT, NO ADDN'L FLAGS
+!
+   SCAL10  = 10.0 ** KPDS(22)
+   SCAL10  = 1.0 / SCAL10
+   IF (KPDS(3).EQ.23.OR.KPDS(3).EQ.24.OR.KPDS(3).EQ.26                         &
+               .OR.KPDS(3).EQ.63.OR.KPDS(3).EQ.64) THEN
+       IF (KPDS(3).EQ.26) THEN
+           KADD    = 72
+       ELSE IF (KPDS(3).EQ.63.OR.KPDS(3).EQ.64) THEN
+           KADD    = 91
+       ELSE
+           KADD    = 37
+       END IF
+       CALL GBYTES (MSGA,KSAVE,KPTR(8),KBITS,0,KNR)
+       KPTR(8)   = KPTR(8) + KBITS * KNR
+       II        = 1
+       KENTRY    = KPTR(10)
+       DO 4001 I = 1, KENTRY
+           IF (KBMS(I)) THEN
+               DATA(I)   = (REFNCE+FLOAT(KSAVE(II))*SCALE)*SCAL10
+               II        = II + 1
+           ELSE
+               DATA(I)   = 0.0
+           END IF
+ 4001     CONTINUE
+       DO 4002 I = 2, KADD
+           DATA(I)   = DATA(1)
+ 4002     CONTINUE
+   ELSE IF (KPDS(3).EQ.21.OR.KPDS(3).EQ.22.OR.KPDS(3).EQ.25                    &
+               .OR.KPDS(3).EQ.61.OR.KPDS(3).EQ.62) THEN
+       CALL GBYTES (MSGA,KSAVE,KPTR(8),KBITS,0,KNR)
+       II    = 1
+       KENTRY = KPTR(10)
+       DO 4011 I = 1, KENTRY
+           IF (KBMS(I)) THEN
+               DATA(I) = (REFNCE + FLOAT(KSAVE(II)) * SCALE) * SCAL10
+               II  = II + 1
+           ELSE
+               DATA(I) = 0.0
+           END IF
+ 4011     CONTINUE
+       IF (KPDS(3).EQ.25) THEN
+           KADD    = 71
+       ELSE IF (KPDS(3).EQ.61.OR.KPDS(3).EQ.62) THEN
+           KADD    = 90
+       ELSE
+           KADD    = 36
+       END IF
+       LASTP   = KENTRY - KADD
+       DO 4012 I = LASTP+1, KENTRY
+           DATA(I) = DATA(LASTP)
+ 4012     CONTINUE
+   ELSE
+       CALL GBYTES (MSGA,KSAVE,KPTR(8),KBITS,0,KNR)
+       II    = 1
+       KENTRY = KPTR(10)
+       DO 500 I = 1, KENTRY
+           IF (KBMS(I)) THEN
+               DATA(I) = (REFNCE + FLOAT(KSAVE(II)) * SCALE) * SCAL10
+               II  = II + 1
+           ELSE
+               DATA(I) = 0.0
+           END IF
+  500     CONTINUE
+   END IF
+   GO TO 900
+!  ------------- PROCESS SPHERICAL HARMONIC COEFFICIENTS,
+!               SIMPLE PACKING, FLOATING POINT, NO ADDN'L FLAGS
+ 5000 CONTINUE
+!     PRINT *,'CHECK POINT SPECTRAL COEFF'
+   KPTR(8)  = IBYT12
+   CALL GBYTE (MSGA,KKK,KPTR(8),32)
+   KPTR(8)  = KPTR(8) + 32
+!
+!     THE NEXT CODE WILL CONVERT THE IBM370 FOATING POINT
+!     TO THE FLOATING POINT USED ON YOUR MACHINE.
+!
+!     1ST TEST TO SEE IN ON 32 OR 64 BIT WORD MACHINE
+!     LW = 4 OR 8;  IF 8 MAY BE A CRAY
+!
+   CALL W3FI01(LW)
+   IF (LW.EQ.4) THEN
+     CALL GBYTE (KK,JSGN,0,1)
+     CALL GBYTE (KK,JEXP,1,7)
+     CALL GBYTE (KK,IFR,8,24)
+   ELSE
+     CALL GBYTE (KK,JSGN,32,1)
+     CALL GBYTE (KK,JEXP,33,7)
+     CALL GBYTE (KK,IFR,40,24)
+   ENDIF
+!
+   IF (IFR.EQ.0) THEN
+       REALKK  = 0.0
+   ELSE IF (JEXP.EQ.0.AND.IFR.EQ.0) THEN
+       REALKK  = 0.0
+   ELSE
+       REALKK  = FLOAT(IFR) * 16.0 ** (JEXP - 64 - 6)
+       IF (JSGN.NE.0) REALKK  = -REALKK
+   END IF
+   DATA(1)  = REALKK
+   CALL GBYTES (MSGA,KSAVE,KPTR(8),KBITS,0,KNR)
+!  --------------
+   DO 6000 I = 1, KENTRY
+       DATA(I+1)  = REFNCE + FLOAT(KSAVE(I)) * SCALE
+ 6000 CONTINUE
+  900 CONTINUE
+   IF(ALLOCATED(KSAVE)) DEALLOCATE(KSAVE)
+!     PRINT *,'EXIT FI635'
+   RETURN
+   END
+   
+   SUBROUTINE FI636 (DATA,MSGA,KBMS,REFNCE,KPTR,KPDS,KGDS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI636       PROCESS SECOND ORDER PACKING
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 92-09-22
+!
+! ABSTRACT: PROCESS SECOND ORDER PACKING FROM THE BINARY DATA SECTION
+!   (BDS) FOR SINGLE DATA ITEMS GRID POINT DATA
+!
+! PROGRAM HISTORY LOG:
+!   93-06-08  CAVANAUGH
+!   93-12-15  CAVANAUGH   MODIFIED SECOND ORDER POINTERS TO FIRST ORDER
+!                         VALUES AND SECOND ORDER VALUES CORRECTLY.
+!   95-04-26  R.E.JONES   FI636 CORECTION FOR 2ND ORDER COMPLEX 
+!                         UNPACKING.  
+!
+! USAGE:    CALL FI636 (DATA,MSGA,KBMS,REFNCE,KPTR,KPDS,KGDS)
+!   INPUT ARGUMENT LIST:
+!
+!     MSGA     - ARRAY CONTAINING GRIB MESSAGE
+!     REFNCE   - REFERENCE VALUE
+!     KPTR     - WORK ARRAY
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     DATA     - LOCATION OF OUTPUT ARRAY
+!              WORKING ARRAY
+!     KBDS(1)  - N1
+!     KBDS(2)  - N2
+!     KBDS(3)  - P1
+!     KBDS(4)  - P2
+!     KBDS(5)  - BIT POINTER TO 2ND ORDER WIDTHS
+!     KBDS(6)  -  "    "     "   "   "    BIT MAPS
+!     KBDS(7)  -  "    "     "  FIRST ORDER VALUES
+!     KBDS(8)  -  "    "     "  SECOND ORDER VALUES
+!     KBDS(9)  -  "    "     START OF BDS
+!     KBDS(10) -  "    "     MAIN BIT MAP
+!     KBDS(11) - BINARY SCALING
+!     KBDS(12) - DECIMAL SCALING
+!     KBDS(13) - BIT WIDTH OF FIRST ORDER VALUES
+!     KBDS(14) - BIT MAP FLAG
+!                 0 = NO SECOND ORDER BIT MAP
+!                 1 = SECOND ORDER BIT MAP PRESENT
+!     KBDS(15) - SECOND ORDER BIT WIDTH
+!     KBDS(16) - CONSTANT / DIFFERENT WIDTHS
+!                 0 = CONSTANT WIDTHS
+!                 1 = DIFFERENT WIDTHS
+!     KBDS(17) - SINGLE DATUM / MATRIX
+!                 0 = SINGLE DATUM AT EACH GRID POINT
+!                 1 = MATRIX OF VALUES AT EACH GRID POINT
+!       (18-20)- UNUSED
+!
+! REMARKS:
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS, CRAY
+!
+!$$$
+   REAL              ::  DATA(*)
+   REAL              ::  REFN
+   REAL              ::  REFNCE
+
+   INTEGER           ::  KBDS(20)
+   INTEGER           ::  KPTR(*)
+   INTEGER           ::  JREF,BMAP2(12500)
+   INTEGER           ::  I,IBDS
+   INTEGER           ::  KBIT,IFOVAL,ISOVAL
+   INTEGER           ::  KPDS(*),KGDS(*)
+
+   LOGICAL*1         ::  KBMS(*)
+
+   CHARACTER(len=1)  ::  MSGA(*)
+
+   EQUIVALENCE  (JREF,REFN)
+!  *******************     SETUP     ******************************
+   SAVE
+!     PRINT *,'ENTER FI636'
+!                                START OF BMS (BIT POINTER)
+   DO I = 1,20
+     KBDS(I)  = 0
+   END DO
+!                BYTE START OF BDS
+   IBDS  = KPTR(2) + KPTR(3) + KPTR(4) + KPTR(5)
+!     PRINT *,'KPTR(2-5) ',KPTR(2),KPTR(3),KPTR(4),KPTR(5)
+!                BIT START OF BDS
+   JPTR  = IBDS * 8
+!     PRINT *,'JPTR ',JPTR
+   KBDS(9) = JPTR
+!     PRINT *,'START OF BDS         ',KBDS(9)
+!                    BINARY SCALE VALUE  BDS BYTES 5-6
+   CALL GBYTE (MSGA,ISIGN,JPTR+32,1)
+   CALL GBYTE (MSGA,KBDS(11),JPTR+33,15)
+   IF (ISIGN.GT.0) THEN
+       KBDS(11)  = - KBDS(11)
+   END IF
+!     PRINT *,'BINARY SCALE VALUE =',KBDS(11)
+!                  EXTRACT REFERENCE VALUE
+   CALL GBYTE(MSGA,JREF,JPTR+48,32)
+!     PRINT *,'DECODED REFERENCE VALUE =',REFN,REFNCE
+!                F O BIT WIDTH
+   CALL GBYTE(MSGA,KBDS(13),JPTR+80,8)
+   JPTR  = JPTR + 88
+!              AT START OF BDS BYTE 12
+!                EXTRACT N1
+   CALL GBYTE (MSGA,KBDS(1),JPTR,16)
+!     PRINT *,'N1  = ',KBDS(1)
+   JPTR  = JPTR + 16
+!                 EXTENDED FLAGS
+   CALL GBYTE (MSGA,KFLAG,JPTR,8)
+!                 ISOLATE BIT MAP FLAG
+   IF (IAND(KFLAG,32).NE.0) THEN
+     KBDS(14) = 1
+   ELSE
+     KBDS(14) = 0
+   END IF
+   IF (IAND(KFLAG,16).NE.0) THEN
+     KBDS(16) = 1
+   ELSE
+     KBDS(16) = 0
+   END IF
+   IF (IAND(KFLAG,64).NE.0) THEN
+     KBDS(17) = 1
+   ELSE
+     KBDS(17) = 0
+   END IF
+   JPTR  = JPTR + 8
+!                EXTRACT N2
+   CALL GBYTE (MSGA,KBDS(2),JPTR,16)
+!     PRINT *,'N2  = ',KBDS(2)
+   JPTR  = JPTR + 16
+!                EXTRACT P1
+   CALL GBYTE (MSGA,KBDS(3),JPTR,16)
+!     PRINT *,'P1  = ',KBDS(3)
+   JPTR  = JPTR + 16
+!                EXTRACT P2
+   CALL GBYTE (MSGA,KBDS(4),JPTR,16)
+!     PRINT *,'P2  = ',KBDS(4)
+   JPTR  = JPTR + 16
+!                 SKIP RESERVED BYTE
+   JPTR    = JPTR + 8
+!                START OF SECOND ORDER BIT WIDTHS
+   KBDS(5) = JPTR
+!                COMPUTE START OF SECONDARY BIT MAP
+   IF (KBDS(14).NE.0) THEN
+!                           FOR INCLUDED SECONDARY BIT MAP
+       JPTR    = JPTR + (KBDS(3) * 8)
+       KBDS(6) = JPTR
+   ELSE
+!                           FOR CONSTRUCTED SECONDARY BIT MAP
+       KBDS(6)  = 0
+   END IF
+!                CREATE POINTER TO START OF FIRST ORDER VALUES
+   KBDS(7) =  KBDS(9) + KBDS(1) * 8 - 8
+!     PRINT *,'BIT POINTER TO START OF FOVALS',KBDS(7)
+!                CREATE POINTER TO START OF SECOND ORDER VALUES
+   KBDS(8) =  KBDS(9) + KBDS(2) * 8 - 8
+!     PRINT *,'BIT POINTER TO START OF SOVALS',KBDS(8)
+!     PRINT *,'KBDS( 1) - N1                         ',KBDS( 1)
+!     PRINT *,'KBDS( 2) - N2                         ',KBDS( 2)
+!     PRINT *,'KBDS( 3) - P1                         ',KBDS( 3)
+!     PRINT *,'KBDS( 4) - P2                         ',KBDS( 4)
+!     PRINT *,'KBDS( 5) - BIT PTR - 2ND ORDER WIDTHS ',KBDS( 5)
+!     PRINT *,'KBDS( 6) -  "   "     "   " BIT MAPS  ',KBDS( 6)
+!     PRINT *,'KBDS( 7) -  "   "     F O VALS        ',KBDS( 7)
+!     PRINT *,'KBDS( 8) -  "   "     S O VALS        ',KBDS( 8)
+!     PRINT *,'KBDS( 9) -  "   "    START OF BDS     ',KBDS( 9)
+!     PRINT *,'KBDS(10) -  "   "    MAIN BIT MAP     ',KBDS(10)
+!     PRINT *,'KBDS(11) - BINARY SCALING             ',KBDS(11)
+!     PRINT *,'KPDS(22) - DECIMAL SCALING            ',KPDS(22)
+!     PRINT *,'KBDS(13) - FO BIT WIDTH               ',KBDS(13)
+!     PRINT *,'KBDS(14) - 2ND ORDER BIT MAP FLAG     ',KBDS(14)
+!     PRINT *,'KBDS(15) - 2ND ORDER BIT WIDTH        ',KBDS(15)
+!     PRINT *,'KBDS(16) - CONSTANT/DIFFERENT WIDTHS  ',KBDS(16)
+!     PRINT *,'KBDS(17) - SINGLE DATUM/MATRIX        ',KBDS(17)
+!     PRINT *,'REFNCE VAL                            ',REFNCE
+!  ************************* PROCESS DATA  **********************
+   IJ  = 0
+!  ========================================================
+   IF (KBDS(14).EQ.0) THEN
+!                           NO BIT MAP, MUST CONSTRUCT ONE
+       IF (KGDS(2).EQ.65535) THEN
+           IF (KGDS(20).EQ.255) THEN
+               PRINT *,'CANNOT BE USED HERE'
+           ELSE
+!                               POINT TO PL
+       LP  = KPTR(9) + KPTR(2)*8 + KPTR(3)*8 + KGDS(20)*8 - 8
+!                 PRINT *,'LP = ',LP
+               JT  = 0
+               DO 2000 JZ = 1, KGDS(3)
+!                               GET NUMBER IN CURRENT ROW
+                   CALL GBYTE (MSGA,NUMBER,LP,16)
+!                               INCREMENT TO NEXT ROW NUMBER
+                   LP  = LP + 16
+!                     PRINT *,'NUMBER IN ROW',JZ,' = ',NUMBER
+                   DO 1500 JQ = 1, NUMBER
+                       IF (JQ.EQ.1) THEN
+                           CALL SBYTE (BMAP2,1,JT,1)
+                       ELSE
+                           CALL SBYTE (BMAP2,0,JT,1)
+                       END IF
+                       JT  = JT + 1
+ 1500                 CONTINUE
+ 2000             CONTINUE
+           END IF
+       ELSE
+           IF (IAND(KGDS(11),32).EQ.0) THEN
+!                           ROW BY ROW
+!                 PRINT *,'     ROW BY ROW'
+               KOUT  = KGDS(3)
+               KIN   = KGDS(2)
+           ELSE
+!                           COL BY COL
+!                 PRINT *,'     COL BY COL'
+               KIN   = KGDS(3)
+               KOUT  = KGDS(2)
+           END IF
+!             PRINT *,'KIN=',KIN,' KOUT= ',KOUT
+           DO 200 I = 1, KOUT
+               DO 150 J = 1, KIN
+                   IF (J.EQ.1) THEN
+                       CALL SBYTE (BMAP2,1,IJ,1)
+                   ELSE
+                       CALL SBYTE (BMAP2,0,IJ,1)
+                   END IF
+                   IJ  = IJ + 1
+  150             CONTINUE
+  200         CONTINUE
+       END IF
+   END IF
+!  ========================================================
+!     PRINT 99,(BMAP2(J),J=1,110)
+!99   FORMAT ( 10(1X,Z8.8))
+!     CALL BINARY (BMAP2,2)
+!                FOR EACH GRID POINT ENTRY
+!
+      SCALE2  = 2.0**KBDS(11)
+      SCAL10  = 10.0**KPDS(22)
+!     PRINT *,'SCALE VALUES - ',SCALE2,SCAL10
+   DO 1000 I = 1, KPTR(10)
+!                    GET NEXT MASTER BIT MAP BIT POSITION
+!                    IF NEXT MASTER BIT MAP BIT POSITION IS 'ON' (1)
+       IF (KBMS(I)) THEN
+!             WRITE(6,900)I,KBMS(I)
+! 900         FORMAT (1X,I4,3X,14HMAIN BIT IS ON,3X,L4)
+           IF (KBDS(14).NE.0) THEN
+               CALL GBYTE (MSGA,KBIT,KBDS(6),1)
+           ELSE
+               CALL GBYTE (BMAP2,KBIT,KBDS(6),1)
+           END IF
+!             PRINT *,'KBDS(6) =',KBDS(6),' KBIT =',KBIT
+           KBDS(6)  = KBDS(6) + 1
+           IF (KBIT.NE.0) THEN
+!                 PRINT *,'          SOB ON'
+!                                  GET NEXT FIRST ORDER PACKED VALUE
+               CALL GBYTE (MSGA,IFOVAL,KBDS(7),KBDS(13))
+               KBDS(7)  = KBDS(7) + KBDS(13)
+!                 PRINT *,'FOVAL =',IFOVAL
+!                                   GET SECOND ORDER BIT WIDTH
+               CALL GBYTE (MSGA,KBDS(15),KBDS(5),8)
+               KBDS(5)  = KBDS(5) + 8
+!                PRINT *,KBDS(7)-KBDS(13),' FOVAL =',IFOVAL,' KBDS(5)=',
+!    *                           ,KBDS(5), 'ISOWID =',KBDS(15)
+           ELSE
+!                 PRINT *,'          SOB NOT ON'
+           END IF
+           ISOVAL  = 0
+           IF (KBDS(15).EQ.0) THEN
+!                        IF SECOND ORDER BIT WIDTH = 0
+!                             THEN SECOND ORDER VALUE IS 0
+!                            SO CALCULATE DATA VALUE FOR THIS POINT
+!                 DATA(I) = (REFNCE + (FLOAT(IFOVAL) * SCALE2)) / SCAL10
+           ELSE
+               CALL GBYTE (MSGA,ISOVAL,KBDS(8),KBDS(15))
+               KBDS(8)  = KBDS(8) + KBDS(15)
+           END IF
+           DATA(I) = (REFNCE + (FLOAT(IFOVAL + ISOVAL) * SCALE2)) / SCAL10
+!             PRINT *,I,DATA(I),REFNCE,IFOVAL,ISOVAL,SCALE2,SCAL10
+       ELSE
+!             WRITE(6,901) I,KBMS(I)
+! 901         FORMAT (1X,I4,3X,15HMAIN BIT NOT ON,3X,L4)
+           DATA(I)  = 0.0
+       END IF
+!         PRINT *,I,DATA(I),IFOVAL,ISOVAL,KBDS(5),KBDS(15)
+ 1000 CONTINUE
+!  **************************************************************
+!     PRINT *,'EXIT FI636'
+   RETURN
+   END
+   
+   SUBROUTINE FI637(*,J,KPDS,KGDS,KRET)
+!$$$  SUBPROGRAM DOCUMENTATION  BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI637       GRIB GRID/SIZE TEST
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 91-09-13
+!
+! ABSTRACT: TO TEST WHEN GDS IS AVAILABLE TO SEE IF SIZE MISMATCH
+!   ON EXISTING GRIDS (BY CENTER) IS INDICATED
+!
+! PROGRAM HISTORY LOG:
+!   91-09-13  CAVANAUGH
+!
+! USAGE:    CALL FI637(*,J,KPDS,KGDS,KRET)
+!   INPUT ARGUMENT LIST:
+!     J        - SIZE FOR INDICATED GRID
+!     KPDS     -
+!     KGDS     -
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     KRET     - ERROR RETURN
+!
+! REMARKS:
+!     KRET     -
+!          = 9 - GDS INDICATES SIZE MISMATCH WITH STD GRID
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS
+!
+!$$$
+   INTEGER  ::  KPDS(*)
+   INTEGER  ::  KGDS(*)
+   INTEGER  ::  J
+   INTEGER  ::  I
+!  ---------------------------------------
+   SAVE
+!  ---------------------------------------
+!           IF GDS NOT INDICATED, RETURN
+!  ----------------------------------------
+   IF (IAND(KPDS(4),128).EQ.0) RETURN
+!  ---------------------------------------
+!            GDS IS INDICATED, PROCEED WITH TESTING
+!  ---------------------------------------
+   IF (KGDS(2).EQ.65535) THEN
+       RETURN
+   END IF
+   I     = KGDS(2) * KGDS(3)
+!  ---------------------------------------
+!            INTERNATIONAL SET
+!  ---------------------------------------
+   IF (KPDS(3).GE.21.AND.KPDS(3).LE.26) THEN
+       IF (I.NE.J) THEN
+            RETURN 1
+       END IF
+   ELSE IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+       IF (I.NE.J) THEN
+           RETURN 1
+       END IF
+   ELSE IF (KPDS(3).EQ.50) THEN
+       IF (I.NE.J) THEN
+           RETURN 1
+       END IF
+   ELSE IF (KPDS(3).GE.61.AND.KPDS(3).LE.64) THEN
+       IF (I.NE.J) THEN
+           RETURN 1
+       END IF
+!  ---------------------------------------
+!            TEST ECMWF CONTENT
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.98) THEN
+       KRET  = 9
+       IF (KPDS(3).GE.1.AND.KPDS(3).LE.16) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE
+           KRET  = 5
+           RETURN 1
+       END IF
+!  ---------------------------------------
+!           U.K. MET OFFICE, BRACKNELL
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.74) THEN
+       KRET  = 9
+       IF (KPDS(3).GE.25.AND.KPDS(3).LE.26) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE
+           KRET  = 5
+           RETURN 1
+       END IF
+!  ---------------------------------------
+!           CANADA
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.54) THEN
+       PRINT *,' NO CURRENT LISTING OF CANADIAN GRIDS'
+       RETURN 1
+!  ---------------------------------------
+!           JAPAN METEOROLOGICAL AGENCY
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.34) THEN
+       PRINT *,' NO CURRENT LISTING OF JMA GRIDS'
+       RETURN 1
+!  ---------------------------------------
+!           NAVY - FNOC
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.58) THEN
+       IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.220.AND.KPDS(3).LE.221) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).EQ.223) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE
+           KRET = 5
+           RETURN 1
+       END IF
+!  ---------------------------------------
+!                 U.S. GRIDS
+!  ---------------------------------------
+   ELSE IF (KPDS(1).EQ.7) THEN
+       KRET  = 9
+       IF (KPDS(3).GE.1.AND.KPDS(3).LE.4) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).EQ.5.OR.KPDS(3).EQ.6) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.27.AND.KPDS(3).LE.30) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.33.AND.KPDS(3).LE.34) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.37.AND.KPDS(3).LE.44) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.55.AND.KPDS(3).LE.56) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.67.AND.KPDS(3).LE.77) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.85.AND.KPDS(3).LE.86) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).EQ.87) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.90.AND.KPDS(3).LE.98) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).EQ.100.OR.KPDS(3).EQ.101) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.103.AND.KPDS(3).LE.107) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).EQ.126) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE IF (KPDS(3).GE.201.AND.KPDS(3).LE.215) THEN
+           IF (I.NE.J) THEN
+               RETURN 1
+           END IF
+       ELSE
+           KRET  = 5
+           RETURN 1
+       END IF
+   ELSE
+       KRET  = 10
+       RETURN 1
+   END IF
+!  ------------------------------------
+!                    NORMAL EXIT
+!  ------------------------------------
+   KRET  = 0
+   RETURN
+   END

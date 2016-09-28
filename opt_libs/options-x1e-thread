@@ -1,0 +1,41 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP='cpp -C'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=u:
+FTASS='assign -a'
+RUNENV=aprun
+#
+#  Model compiler options
+#
+F77=ftn
+FORT_FLAGS="-O2 -O msp -sdefault64 -J ../include -p ../include"
+EXTRA_FORT_FLAGS=" -O inlinefrom=../share/fpvs0.f:../share/fpvs.f "
+LOAD_FLAGS="-O2 -O msp -sdefault64"
+EXTRA_LIBS=
+#
+#  UTIL
+#
+UTIL_F77=ftn
+UTIL_FORT_FLAGS="-O2 -sdefault64"
+UTIL_LOAD_FLAGS="-O2 -sdefault64"
+#
+W3LIB_F77=ftn
+W3LIB_FORT_FLAGS="-O2"
+W3LIB_LOAD_FLAGS=
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=ftn
+BFLIB_FORT_FLAGS="-O2 -sdefault64"
+BFLIB_LOAD_FLAGS="-O2 -sdefault64"
+#
+MTNSUBMIT=

@@ -1,0 +1,8 @@
+#!/bin/sh
+
+INSTALL_DIR=/nfsuser/g03/wx51hh/jif2001/climparm
+
+for file in `ls grib*`
+do
+  cp $file $INSTALL_DIR/clim_$file
+done

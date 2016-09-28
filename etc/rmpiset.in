@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# Programmer: Yifeng Cui, 06-05-02
+#
+# This script is to run rmpiset.x
+# rmpiset.x levr igrd jgrd npes
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+
+XLFRTEOPTS="namelist=old"
+export XLFRTEOPTS
+
+if [ @MACHINE@ = es ] ; then
+
+echo " &namset " >inp
+echo " levr=$1, " >>inp
+echo " igrd=$2, " >>inp
+echo " jgrd=$3, " >>inp
+echo " npes=$4, " >>inp
+if [ check$5 != check ]; then echo " ncol=$5, " >>inp; fi
+if [ check$6 != check ]; then echo " nrow=$6, " >>inp; fi
+echo " &end " >>inp
+
+dirhere=`pwd`
+cat >~/rmpiset_gb.sh <<EOF
+#!/bin/sh
+cd $dirhere
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+@RUNENV@ $ETC_DIR/rmpiset.x <inp
+EOF
+        chmod ~/rmpiset_gb.sh
+        rexec gbnode000 -l @USERNAME@ ./rmpiset_gb.sh
+
+if [ $? -ne 0 ] ; then
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+rm inp
+
+else
+
+echo " &namset " >inp.$$
+echo " levr=$1, " >>inp.$$
+echo " igrd=$2, " >>inp.$$
+echo " jgrd=$3, " >>inp.$$
+echo " npes=$4, " >>inp.$$
+if [ check$5 != check ]; then echo " ncol=$5, " >>inp.$$; fi
+if [ check$6 != check ]; then echo " nrow=$6, " >>inp.$$; fi
+echo " &end " >>inp.$$
+
+@RUNENV@ $ETC_DIR/rmpiset.x <inp.$$
+if [ $? -ne 0 ] ; then
+        echo "`date` $0: Execution failed." >>ERROR.out
+        exit 8
+fi
+rm inp.$$
+
+fi

@@ -1,0 +1,195 @@
+#!/bin/sh
+#
+# Make procedure when define.h is updated
+#
+CPSLIBS_DIR=`echo $0 | sed 's/\.\..*//g' | sed 's?/lib/??g'`
+MACHINE=`grep '^MACHINE=' $CPSLIBS_DIR/configure-libs | cut -d'=' -f2`
+grep '#define RSM' ./define.h >/dev/null
+if [ $? -ne 0 ] ; then
+	SRC_DIRS='albaer chgr cnvaer cnvalb cnvrt co2 fcst mpi mtn pgb sfc sgb share'
+	MARCH_SRC_DIRS="fcst mpi"
+	rsm=no
+else
+	SRC_DIRS="albaer chgr cnvaer cnvalb cnvrt co2 fcst mpi mtn pgb sfc sgb share rbln rfcst rgsm rinpg rinpr rloc rmrgsfc rmtn rpgb rsfc rsgb rsml rmpi"
+	MARCH_SRC_DIRS="fcst rfcst rgsm rsml rmpi"
+	rsm=yes
+fi
+#
+JCAP=`grep -i '_jcap_' ./define.h | sed "s/.*_ *//g"`
+LEVS=`grep -i '_levs_' ./define.h | sed "s/.*_ *//g"`
+LONF=`grep -i '_lonf_' ./define.h | sed "s/.*_ *//g"`
+LATG=`grep -i '_latg_' ./define.h | sed "s/.*_ *//g"`
+LEVS=`grep -i '_levs_' ./define.h | sed "s/.*_ *//g"`
+LEVR=`grep -i '_levr_' ./define.h | sed "s/.*_ *//g"`
+IGRD=`grep -i '_IGRD_' ./define.h | sed "s/.*_ *//g"`
+JGRD=`grep -i '_JGRD_' ./define.h | sed "s/.*_ *//g"`
+#
+MARCH=`grep '_march_' define.h | awk '{print $3}'`
+NPES=`grep '_npes_' define.h | awk '{print $3}'`
+NCPUS=`grep '_ncpus_' define.h | awk '{print $3}'`
+#
+#  Consistency check
+#
+if [ $MARCH = single -o $MARCH = thread ] ; then
+	if [ $NPES -gt 1 ] ; then
+		echo 'NPES should be equal to 1 for thread/single job.  Modifying...'
+		sed 's/^#define  *_npes_ .*/#define _npes_ 1/g' define.h >tmp.$$
+		mv tmp.$$ define.h
+	fi
+	if [ $MARCH = single -a $NCPUS -gt 1 ] ; then
+		echo 'This is single cpu job and NCPUS should be 1. Modifying...'
+		sed 's/^#define  *_ncpus_ .*/#define _ncpus_ 1/g' define.h >tmp.$$
+		mv tmp.$$ define.h
+	fi
+	if [ $MARCH = thread -a $NCPUS -le 1 ] ; then
+		echo 'This is thread job and NCPUS should be >1'
+		exit 8
+	fi
+	grep '#include <define_mpi.h>' define.h >/dev/null 2>/dev/null
+	if [ $? -eq 0 ] ; then
+		sed '/#include <define_mpi.h>/d' define.h >tmp.$$
+		mv tmp.$$ define.h
+	fi
+elif [ $MARCH = mpi -o $MARCH = hybrid ] ; then
+	if [ $NPES -le 1 ] ; then
+		echo 'NPES should be greater than 1 for mpi/hybrid job'
+		exit 8
+	fi
+	if [ $MARCH = hybrid -a $NCPUS -le 1 ] ; then
+		echo 'This is mpi-thread hybrid job and NCPUS should be >1'
+		exit 8
+	fi
+	if [ $MARCH = mpi -a $NCPUS -gt 1 ] ; then
+		echo 'NCPUS should be 1 for mpi job. Modifying NCPUS to 1.'
+		sed 's/^#define  *_ncpus_ .*/#define _ncpus_ 1/g' define.h >tmp.$$
+		mv tmp.$$ define.h
+	fi
+	grep '#include <define_mpi.h>' define.h >/dev/null 2>/dev/null
+	if [ $? -ne 0 ] ; then
+		sed 's/^#define  *_ncpus_ *\(.*\)/#define _ncpus_ \1 \
+#include <define_mpi.h>/g' define.h >tmp.$$
+		mv tmp.$$ define.h
+	fi
+	if [ ! -s "seddat_srcs-$MARCH" ] ; then
+		echo seddat_srcs-$MARCH does not exist
+		exit 8
+	fi
+	$CPSLIBS_DIR/etc/mpiset \
+	                                $JCAP $LEVS $LONF $LATG $NPES >./define_mpi.h   
+#	$CPSLIBS_DIR/etc/rmpiset \
+#					$LEVR $IGRD $JGRD $NPES >>./define_mpi.h
+else
+	echo "MARCH unknown"
+	exit 8
+fi
+#
+# recreate ./src/$MARCH_SRC_DIRS/Makefile if march is modified
+#
+diff define.h define.h.prev >/dev/null 2>/dev/null
+if [ $? -eq 0 ] ; then
+	exit
+fi
+diff define.h define.h.prev | grep '_march_' >/dev/null 2>/dev/null
+if [ $? -eq 0 ] ; then
+	echo "re-creating ./src/Makefile for $MARCH"
+	sed -f seddat_srcs-$MARCH ./src/Makefile.in >./src/Makefile
+	for dir in $MARCH_SRC_DIRS
+	do
+		echo "re-creating ./src/$dir/Makefile for $MARCH"
+		sed -f seddat_srcs-$MARCH ./src/$dir/Makefile.in >./src/$dir/Makefile
+	done
+fi
+#
+echo 'Searching for files to be updated'
+diff define.h define.h.prev | egrep '^>|^<' | \
+		awk '{print $3}' | sed 's/ _//g' | sed 's/_ *$//g' | \
+		tr '[a-z]' '[A-Z]' >tmpx.$$
+#
+#  if _march_ is changed, then make clean of fcst
+#
+clean_fcst=no
+grep 'MARCH' tmpx.$$ >/dev/null 2>/dev/null
+if [ $? -eq 0 ] ; then
+	echo 'computer architecture change. clean src/fcst'
+	cd src/fcst
+	make clean
+	cd ../../
+	if [ $rsm = yes ] ; then
+		cd src/rfcst
+		make clean
+		cd ../
+		cd rgsm
+		make clean
+		cd ../
+		cd rsml
+		make clean
+		cd ../../
+	fi
+	sed '/MARCH/d' tmpx.$$ >tmpy.$$
+	mv tmpy.$$ tmpx.$$
+	clean_fcst=yes
+fi
+egrep ' JCAP| LEVS| LONF| LATG' tmpx.$$ >/dev/null 2>/dev/null
+if [ $? -eq 0 ] ; then
+	echo 'model resolution change.  clean all'
+	make clean
+	rm tmpx.$$ 2>/dev/null
+	exit
+fi
+#
+#	find files
+#
+rm tmp.$$ 2>/dev/null
+grep 'NPES' tmpx.$$ >/dev/null 2>/dev/null
+if [ $? -eq 0 ] ; then
+	echo MP >>tmpx.$$
+fi
+sort -u -o tmpx.$$ tmpx.$$
+echo 'Looking for the files with the define of the following variables'
+cat tmpx.$$
+for DEF in `cat tmpx.$$`
+do
+	for dir in $SRC_DIRS
+	do
+		if [ $clean_fcst = yes -a $dir = fcst ] ; then
+			continue
+		fi
+		echo '+\c'
+		grep -l " $DEF" src/$dir/*.F >>tmp.$$
+	done
+	echo '+\c'
+	grep -l " $DEF" src/include/*.h >>tmp.$$
+done
+rm tmpx.$$ 2>/dev/null
+#
+#  touch files to be updated
+#
+echo ' '
+sort -u tmp.$$ | sed '/paramodel/d' >tmp2.$$
+rm tmp.$$
+for file in `cat tmp2.$$`
+do
+	if [ -n "$file" ] ; then
+		echo touch $file
+		touch $file
+	fi
+done
+#
+#  if *.h is touched, then add dependency to Makefile
+#
+grep '/include/' tmp2.$$
+if [ $? -eq 0 ] ; then
+	for dir in $SRC_DIRS
+	do
+		if [ $clean_fcst = yes -a $dir = fcst ] ; then
+			continue
+		fi
+		cd src/$dir
+		make depend
+		cd ../../
+	done
+fi
+rm tmp2.$$
+chmod u+w define.h.prev
+cp define.h define.h.prev
+chmod u-w define.h.prev

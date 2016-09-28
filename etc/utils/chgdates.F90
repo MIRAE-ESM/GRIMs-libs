@@ -1,0 +1,178 @@
+   PROGRAM CNVRT
+!
+   integer,parameter    ::  JCAPMAX=1200
+   integer,parameter    ::  IDIMMAX=JCAPMAX*3+1
+   integer,parameter    ::  JDIMMAX=IDIMMAX/2
+   integer,parameter    ::  KDIMMAX=500
+   integer,parameter    ::  IJDIMMAX=IDIMMAX*JDIMMAX
+   integer,parameter    ::  NWAVEMAX=(JCAPMAX+1)*(JCAPMAX+2)
+!
+   CHARACTER(len=8)     ::  ON85LAB(4)
+!
+   integer              ::  IDATE(4)
+   real                 ::  SI(KDIMMAX+1),SL(KDIMMAX)
+   real                 ::  GRID1(IJDIMMAX),GRID2(IJDIMMAX,2)
+   real                 ::  WAVE(NWAVEMAX)
+!
+   integer,parameter    ::  KDUM=201,KDUM2=21,KENS=2
+   real                 ::  DUMMY(KDUM),DUMMY2(21),ENSEMBLE(2)
+!
+   DATA NEWYR,NEWMO,NEWDY,NEWHR,FHNEW/-1,-1,-1,-1,-1./
+!
+   NAMELIST/NAMIN/JCAP,IDIM,JDIM,KDIM,                                         &
+                  NEWYR,NEWMO,NEWDY,NEWHR,FHNEW
+!
+   READ(5,NAMIN)
+!
+   IF(JCAP.LE.0.OR.IDIM.LE.0.OR.JDIM.LE.0.OR.KDIM.LE.0) THEN
+     WRITE(6,*) 'WRONG NAMELIST INPUT'
+     CALL ABORT
+   ENDIF
+!
+   IF(JCAP.GT.JCAPMAX.OR.IDIM*JDIM.GT.IJDIMMAX.OR.                             &
+         KDIM.GT.KDIMMAX) THEN
+     WRITE(6,*) 'GIVEN DIMENSION TOO LARGE'
+     CALL ABORT
+   ENDIF
+!
+!     WRITE(6,NAMIN)
+!
+   NWAVE=(JCAP+1)*(JCAP+2)
+!
+!  SIGMA file
+!
+   READ(11,END=901,ERR=901) ON85LAB
+        WRITE(51) ON85LAB
+!
+   READ(11,ERR=201) FHOUR,IDATE,(SI(K),K=1,KDIM+1),(SL(K),K=1,KDIM)            &
+          ,(DUMMY(K),K=1,201-(KDIM+1)-KDIM)                                    &
+          ,WAVES,XLAYERS,TRUN,ORDER,REALFORM,GENCODE                           &
+          ,RLOND,RLATD,RLONP,RLATP,RLONR,RLATR,TRACERS                         &
+          ,SUBCEN,ENSEMBLE,PPID,SLID,VCID,VMID,VTID,RUNID,USRID                &
+          ,PDRYINI,DUMMY2,CLOUDS
+   IF(TRACERS.EQ.0.) THEN
+     TRACERS=1.
+     PRINT *,'TRACERS RESET TO 1.'
+   ENDIF
+   ITRACE=NINT(TRACERS)
+   ICLOUD=NINT(CLOUDS)
+   PRINT *,'TREAD UNIT,FHOUR,IDATE=',N,FHOUR,IDATE
+   PRINT *,' NUMBER OF TRACERS INPUT = ',ITRACE
+   PRINT *,' NUMBER OF CLOUD INPUT   = ',ICLOUD
+   GOTO 202
+201   CONTINUE
+   REWIND 11
+   READ(11) ON85LAB
+   READ(11,ERR=201)FHOUR,IDATE,(SI(K),k=1,KDIM+1),(SL(K),K=1,KDIM)
+   DO I=1,KDUM
+     DUMMY(I)=0.
+   ENDDO
+   WAVES=JCAP
+   XLAYERS=KDIM
+   TRUN=1.
+   ORDER=2.
+   REALFORM=1.
+   GENCODE=80
+   RLOND=IDIM
+   RLATD=JDIM
+   RLONP=IDIM
+   RLATP=JDIM
+   RLONR=IDIM
+   RLATR=JDIM
+   TRACERS=1.
+   CLOUDS=0.
+   PDRYINI=0.
+   SUBCEN=0.
+   DO I=1,KENS
+     ENSEMBLE(I)=0.
+   ENDDO
+   PPID=0.
+   SLID=0.
+   VCID=0.
+   VMID=0.
+   VTID=0.
+   DO K=1,KDUM2
+     DUMMY2(K)=0.
+   ENDDO
+   ITRACE=NINT(TRACERS)
+   ICLOUD=NINT(CLOUDS)
+   PRINT *,'TREAD OLD FORMAT UNIT,FHOUR,IDATE=',N,FHOUR,IDATE
+   PRINT *,' NUMBER OF TRACERS INPUT = ',ITRACE
+   PRINT *,' NUMBER OF CLOUD INPUT   = ',ICLOUD
+202   CONTINUE
+!
+   IF(NEWYR.LT.0 ) NEWYR=IDATE(4)
+   IF(NEWMO.LT.0 ) NEWMO=IDATE(2)
+   IF(NEWDY.LT.0 ) NEWDY=IDATE(3)
+   IF(NEWHR.LT.0 ) NEWHR=IDATE(1)
+   IF(FHNEW.LT.0.) FHNEW=FHOUR
+! 
+!     IDATE(4)=year, (2)=month, (3)=day, (1)=hour
+!
+   WRITE(6,*) 'YEAR,MONTH,DAY,HOUR,FHOUR OF SIGMA FILE' 
+   WRITE(6,*) IDATE(4),IDATE(2),IDATE(3),IDATE(1),FHOUR
+   WRITE(6,*) 'REPLACED BY'
+   WRITE(6,*) NEWYR,NEWMO,NEWDY,NEWHR,FHNEW
+!
+   IDATE(4)=NEWYR
+   IDATE(2)=NEWMO
+   IDATE(3)=NEWDY
+   IDATE(1)=NEWHR
+   FHOUR=FHNEW
+!
+   WRITE(51) FHOUR,IDATE,(SI(K),K=1,KDIM+1),(SL(K),K=1,KDIM)                   &
+          ,(DUMMY(K),K=1,201-(KDIM+1)-KDIM)                                    &
+          ,WAVES,XLAYERS,TRUN,ORDER,REALFORM,GENCODE                           &
+          ,RLOND,RLATD,RLONP,RLATP,RLONR,RLATR,TRACERS                         &
+          ,SUBCEN,ENSEMBLE,PPID,SLID,VCID,VMID,VTID,RUNID,USRID                &
+          ,PDRYINI,DUMMY2,CLOUDS
+!
+   DO K=1,2+3*KDIM+ITRACE*KDIM+ICLOUD*KDIM
+     READ(11,END=900) (WAVE(I),I=1,NWAVE)
+     WRITE(51) (WAVE(I),I=1,NWAVE)
+     WRITE(6,*) ' WRITE K=',K,' WAVE=',WAVE(1)
+   ENDDO
+   GO TO 900
+!
+  901 CONTINUE
+   PRINT *,'<WARNING> SIG file empty'
+  900 CONTINUE
+!
+!  SFC file
+!
+   WRITE(6,*) ' '
+   READ(12,END=910,ERR=910) ON85LAB
+        WRITE(52) ON85LAB
+!
+   READ(12) FHOUR,IDATE
+!
+   WRITE(6,*) 'YEAR,MONTH,DAY,HOUR,FHOUR OF SURFACE FILE' 
+   WRITE(6,*) IDATE(4),IDATE(2),IDATE(3),IDATE(1),FHOUR
+   WRITE(6,*) 'REPLACED BY'
+   WRITE(6,*) NEWYR,NEWMO,NEWDY,NEWHR,FHNEW
+!
+   IDATE(4)=NEWYR
+   IDATE(2)=NEWMO
+   IDATE(3)=NEWDY
+   IDATE(1)=NEWHR
+   FHOUR=FHNEW
+!
+   WRITE(52) FHOUR,IDATE
+!
+   DO K=1,100
+     IF( K.EQ.2 .OR. K.EQ.4 ) THEN
+       READ(12,END=909) ((GRID2(IJ,L),IJ=1,IDIM*JDIM),L=1,2)
+       WRITE(52) ((GRID2(IJ,L),IJ=1,IDIM*JDIM),L=1,2)
+     ELSE
+       READ(12,END=909) (GRID1(IJ),IJ=1,IDIM*JDIM)
+       WRITE(52)(GRID1(IJ),IJ=1,IDIM*JDIM)
+     ENDIF
+     WRITE(6,*) ' WRITE K=',K
+   ENDDO
+!
+909   CONTINUE
+   STOP
+910   CONTINUE
+   PRINT *,'<WARNING> SFC file empty'
+   STOP
+   END

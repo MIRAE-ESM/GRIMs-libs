@@ -1,0 +1,39 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP='cpp -traditional-cpp'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options
+#
+F77=pgf90
+FORT_FLAGS="-r8 -O2 -mp -Mrecursive -Mdalign -DLINUX -byteswapio -module ../include"
+LOAD_FLAGS="-r8 -O2 -mp -Mrecursive -Mdalign -DLINUX -byteswapio"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=pgf90
+UTIL_FORT_FLAGS="-r8 -O2 -mp -Mrecursive -Mdalign -DLINUX -byteswapio"
+UTIL_LOAD_FLAGS="-r8 -O2 -lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+#
+W3LIB_F77=pgf90
+W3LIB_FORT_FLAGS="-mp -Mrecursive -Mdalign -DLINUX -byteswapio"
+W3LIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=pgf90
+BFLIB_FORT_FLAGS="-mp -Mrecursive -Mdalign -DLINUX -byteswapio"
+BFLIB_LOAD_FLAGS="-lpgmp -lpthread -Mrecursive -Mdalign -DLINUX -byteswapio"
+#

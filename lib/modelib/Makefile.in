@@ -1,0 +1,52 @@
+LIB = modelib.a
+OBJS = bsslz1.o filtcof.o gaulat.o gl2gl.o glats.o gspc.o iminv.o \
+incdte.o maxmin.o xmaxmin.o parzen.o pder.o pleg.o poly.o sg2sg.o trispl.o valts.o \
+tridi2.o idsdef.o wryte.o gtbits.o rmaxmin.o sphertpt.o sfcfld.o @FFT99M@
+
+COBJS = streamio.o
+
+MACHINE = @MACHINE@
+SHELL = @SHELL@
+AR = @AR@
+CP = @CP@
+RM = @RM@
+CD = @CD@
+CHMOD = @CHMOD@
+
+CC = @CC@
+CPP = @CPP@
+F77 = @MODELIB_F77@
+FORT_FLAGS = @MODELIB_FORT_FLAGS@
+LOAD_FLAGS = @MODELIB_LOAD_FLAGS@
+INCLUDE_DIR = @MODELIB_INCLUDE_DIR@
+LIB_DIR = @LIB_DIR@
+EXRTA_LIBS = @EXTRA_LIBS@
+
+${LIB} : ${OBJS} ${COBJS}
+	${AR} -r $@ $?
+	${CP} $@ ${LIB_DIR} 
+	${CHMOD} 755 ${LIB}
+
+.SUFFIXES : .o .f90 .F90 .c
+
+.F90.f90 :
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+
+.F90.o :
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+	${F77} ${FORT_FLAGS} -c $*.f90
+
+.f90.o :
+	${F77} ${FORT_FLAGS} -c $*.f90
+
+.c.o :
+	${CC} ${INCLUDE_DIR} -c -o $*.o $*.c
+
+clean :
+	- ${RM} -rf *.f90 *.o *.a core rii_files
+
+dist_clean :
+	- ${CD} ${LIB_DIR}; \
+	${RM} -f ${LIB}

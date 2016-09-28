@@ -1,0 +1,38 @@
+      SUBROUTINE BAREAD(LU,IB,NB,KA,AC)
+C     SUBROUTINE BAREAD(LU,IB,NB,KA,A)
+C     DIMENSION A(NB)
+      PARAMETER(NWK=512,NBW=8,NBK=NWK*NBW)
+C
+      PARAMETER(LLGRIB=720*361)
+      CHARACTER AC(LLGRIB)
+      CHARACTER BC(LLGRIB)
+      DIMENSION A(LLGRIB)
+      EQUIVALENCE (A,BC)
+C
+      DIMENSION B(NWK)
+      IW=IB/NBW
+      NW=(IB+NB-1)/NBW+1-IB/NBW
+      CALL SETPOS(LU,3,IW)
+      NWL=NW
+      KA=0
+      KB=IB-IW*NBW
+      KW=MIN(NWL,NWK)
+      BUFFERIN(LU,0) (B(1),B(KW))
+      LW=LENGTH(LU)
+      DOWHILE(NWL.GT.0.AND.LW.GT.0)
+        KN=MIN(NB-KA,LW*NBW-KB)
+        CALL STRMOV(B,KB+1,KN,A,KA+1)
+        NWL=NWL-LW
+        KA=KA+KN
+        KB=0
+        KW=MIN(NWL,NWK)
+        BUFFERIN(LU,0) (B(1),B(KW))
+        LW=LENGTH(LU)
+      ENDDO
+C
+      DO I=1,KA
+        AC(I)=BC(I)
+      ENDDO
+C
+      RETURN
+      END

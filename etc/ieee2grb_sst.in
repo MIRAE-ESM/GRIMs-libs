@@ -1,0 +1,71 @@
+
+if [ $# -ne 2 ] ; then
+	echo 'Usage: ieee2grb_sst input_ieee_sst_file output_grib_sst_file'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+set -x
+#
+# ieee2grb_sst :
+#
+#  convert ieee sst files to grib format : reading format
+#
+# 1000 continue
+#
+#      read (51,end=999) iy,im,id,ih,ig,jg,xlon1,dxdeg,xlat1,dydeg,
+#     1            (c(ij),ij=1,ig*jg)
+#
+#      goto 1000
+# 999  continue
+#
+#---------------------------------------------------------------------
+#
+#     iy : 4-digit year ( 0 : climatology)
+#     im : month 
+#     id : date         ( 0 : climatology)
+#     ih : hour
+#     ig : x-direction dimension
+#     jg : y-direction dimension
+#     
+#     The belows are zeros for gaussian grids
+#
+#     xlon1 [real*4] : 1st grid longitude (degree)
+#     dxdeg [real*4] : x-grid interval    (degree)
+#     xlat1 [real*4] : 1st grid latitude  (degree)
+#     dydeg [real*4] : y-grid interval    (degree), negative for north -> south
+#     c(ig,jg),[real*4] : sst data in Kelvin
+#
+#
+# Directories
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+if [ @MACHINE@ = x1e ] ; then
+        . /opt/modules/modules/init/sh
+        module load open pbs PrgEnv
+        FILENV=filenv.$$
+        export FILENV
+        assign -R
+else
+        rm -f @FTNID@[0-9]* 2>/dev/null
+fi
+
+if [ @MACHINE@ = cray -o @MACHINE@ = t90 -o @MACHINE@ = t3e ] ; then
+  assign -R
+fi
+@FTASS@ $1 @FTNID@11
+@FTASS@ $2 @FTNID@51
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+@RUNENV@ $ETC_DIR/ieee2grb_sst.x >sst$$.out
+if [ $? -ne 0 ] ; then
+	echo ' Execution failed'
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi

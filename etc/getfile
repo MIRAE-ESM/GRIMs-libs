@@ -1,0 +1,146 @@
+
+CURRDIR=`pwd`
+
+rc=0
+fexist=no
+
+rm verify.tmp 2>/dev/null
+ccnt=0
+cnt=0
+ndln=1
+for argus
+do
+  hmaps=`echo "$argus" | cut -c 1`
+  if [ "$hmaps" != '/' -a "$hmaps" != '"' ] ; then
+    argus=$CURRDIR/$argus
+  fi
+	cnt=` expr $cnt + 1 `
+  ndln=`expr $ndln + 1`
+#
+#  Find file names of the grads % format
+#
+	fngrib=`eval echo "$argus"`
+	filenx="`echo "$fngrib" | sed 's/\%[ymdh]1/[0-9]/g'`"
+	filenx=`echo "$filenx" | sed 's/\%[ymdh]2/[0-9][0-9]/g'`
+	filenx=`echo "$filenx" | sed 's/\%[ymdh]3/[0-9][0-9][0-9]/g'`
+	filenx=`echo "$filenx" | sed 's/\%[ymdh]4/[0-9][0-9][0-9][0-9]/g'`
+	filen1=`echo "$filenx" | sed 's/\%f1/[0-9]/g'`
+	filen1=`echo "$filen1" | sed 's/\%f2/[0-9][0-9]/g'`
+	filen1=`echo "$filen1" | sed 's/\%f3/[0-9][0-9][0-9]/g'`
+	filen1=`echo "$filen1" | sed 's/\%f4/[0-9][0-9][0-9][0-9]/g'`
+	filen2=`echo "$filenx" | sed 's/\%f1/[0-9][0-9]/g'`
+	filen2=`echo "$filen2" | sed 's/\%f2/[0-9][0-9][0-9]/g'`
+	filen2=`echo "$filen2" | sed 's/\%f3/[0-9][0-9][0-9][0-9]/g'`
+	filen3=`echo "$filenx" | sed 's/\%f1/[0-9][0-9][0-9]/g'`
+	filen3=`echo "$filen3" | sed 's/\%f2/[0-9][0-9][0-9][0-9]/g'`
+	filen4=`echo "$filenx" | sed 's/\%f1/[0-9][0-9][0-9][0-9]/g'`
+#
+	cccc=0
+	nf=1
+#	echo ' '
+#	echo ' Searching file(s) of the form,' " $fngrib"
+#	echo ' '
+	while [ $nf -le 4 ] ; do
+		filenm=`eval echo '\$filen'$nf`
+		if [ $nf -gt 1 ] ; then
+			nff=1
+			while [ $nff -le $nf ] ; do
+				if [ $nff -eq $nf ] ; then
+					nff=`expr $nff + 1`
+					continue
+				fi
+				filenx=`eval echo '\$filen'$nff`
+				if [ "$filenm" = "$filenx" ] ; then
+					nf=`expr $nf + 1`
+					continue 2
+				fi
+				nff=`expr $nff + 1`
+			done
+		fi
+#
+		if [ "$filenm" != $fngrib ] ; then
+			if [ $nf -eq 1 ] ; then
+				echo ' You asked multiple files.'
+				echo ' (a) Do you want to process all the files or'
+				echo ' (s) Do you want to select files(s) from the list?'
+				echo ' Type a/s ==>\c'
+				syn=
+				while [ "$syn" != a -a "$syn" != s ] ; do
+					read syn
+					if [ "$syn" != a -a "$syn" != s ] ; then
+						echo ' Illegal input.  Try again ==>\c'
+					else
+						break
+					fi
+				done
+			fi
+#
+			cccx=0
+			for filen in $filenm
+			do
+				cccc=`expr $cccc + 1`
+				cccx=`expr $cccx + 1`
+				if [ -f $filen ] ; then
+ 					echo " $filen"
+					if [ -s $filen ] ; then
+						if [ "$syn" = s ] ; then
+							echo ' Select this file? y/n/N ==>\c' 
+							read sel
+						fi
+						if [ "$sel" = 'N' ] ; then
+							break 2
+						fi
+						if [ $syn = a -o $syn = s -a "$sel" = y ] ; then
+							echo $filen >>verify.tmp
+							ccnt=` expr $ccnt + 1 `
+							fexist=yes
+						else
+							echo " File skipped .. $filen"
+						fi
+					else
+						echo " File $filen empty.  Skipped"
+						shift
+					fi
+				else
+					if [ $nf -eq 1 ] ; then
+						echo " Caution! File of the matching %xx type not found."
+						rc=8
+					fi
+				fi
+			done
+		else
+#			if [ $nf -eq 1 ] ; then
+#				echo " Searching file, $fngrib"
+#			fi
+			if [ -s $filenm ] ; then
+  			echo " $filenm"
+				fexist=yes
+				ccnt=` expr $ccnt + 1 `
+				echo $filenm >>verify.tmp
+			else
+				if [ $nf -eq 1 ] ; then
+					echo " File $filenm empty.  Skipped"
+				fi
+			fi
+		fi
+		nf=`expr $nf + 1`
+	done
+done
+if [ $ccnt -ge 0 ] ; then
+	echo $ccnt >>$parmfile
+	if [ -s verify.tmp ] ; then
+		cat verify.tmp >>$parmfile
+	fi
+fi
+if [ $ccnt -gt 0 ] ;then
+	fexist=yes
+fi
+echo " Number of Files found =$ccnt"
+rm verify.tmp 2>/dev/null
+#
+if [ $fexist = no ] ; then
+	echo " All the files are empty."
+	rc=8
+fi
+echo $rc >count.out
+#

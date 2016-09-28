@@ -1,0 +1,122 @@
+#! /bin/sh 
+#
+# This script searches include used in the program
+# and add dependency lines at the end of Makefile file
+#
+#  This script allows four levels of nested include #
+#
+#  Note that dependency with define.h is intentionally removed
+#
+line=`grep -n '##### dependency added by mkdep #####' Makefile | \
+			cut -d':' -f1`
+if [ "$line" -gt 1 ] ; then
+	sed "$line,$ d" Makefile >out
+	mv out Makefile
+fi
+#
+echo '##### dependency added by mkdep #####' >>Makefile
+
+for file in `ls *.F`
+do
+	echo ' '
+	echo "DOING $file"
+	#
+  if [ ! -s $file ] ; then
+    echo "$file does not exist"
+    exit 8
+  fi
+	grep '#include' $file >/dev/null 2>/dev/null
+	if [ $? -ne 0 ] ; then 
+		continue
+	fi
+	#
+	filex=`echo $file | cut -d'.' -f1`
+#
+	rm incout 2>/dev/null
+	for inc1 in `grep '#include' $file | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+	do
+		if [ $inc1 = define.h -o $inc1 = paramodel.h ] ; then
+			continue
+		fi
+		if [ $inc1 = define.h -o $inc1 = machine.h -o \
+					$inc1 = modlsigs.h -o $inc1 = postplevs.h ] ; then
+				dir='../..'
+		else
+				dir='../include'
+		fi
+		echo "$filex.f :	$dir/$inc1" >> incout
+		if [ -n "$inc1" ] ; then
+			echo "Scanning $inc1"
+		fi
+		grep '#include' $dir/$inc1 >/dev/null 2>/dev/null
+		if [ $? -ne 0 ] ; then 
+			continue
+		fi
+		for inc2 in `grep '#include' $dir/$inc1 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+		do
+			if [ $inc2 = define.h -o $inc2 = paramodel.h ] ; then
+				continue
+			fi
+			if [ $inc2 = define.h -o $inc2 = machine.h -o \
+						$inc2 = modlsigs.h -o $inc2 = postplevs.h ] ; then
+					dir='../..'
+			else
+					dir='../include'
+			fi
+			echo "$filex.f :	$dir/$inc2" >> incout
+			if [ -n "$inc2" ] ; then
+				echo "	Scanning $inc2"
+			fi
+			grep '#include' $dir/$inc2 >/dev/null 2>/dev/null
+			if [ $? -ne 0 ] ; then 
+				continue
+			fi
+			for inc3 in `grep '#include' $dir/$inc2 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+			do
+				if [ $inc3 = define.h -o $inc3 = paramodel.h ] ; then
+					continue
+				fi
+				if [ $inc3 = define.h -o $inc3 = machine.h -o \
+							$inc3 = modlsigs.h -o $inc3 = postplevs.h ] ; then
+						dir='../..'
+				else
+						dir='../include'
+				fi
+				echo "$filex.f :	$dir/$inc3" >> incout
+				if [ -n "$inc3" ] ; then
+					echo "	Scanning $inc3"
+				fi
+				grep '#include' $dir/$inc3 >/dev/null 2>/dev/null
+				if [ $? -ne 0 ] ; then 
+					continue
+				fi
+				for inc4 in `grep '#include' $dir/$inc3 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+				do
+					if [ $inc4 = define.h -o $inc4 = paramodel.h ] ; then
+						continue
+					fi
+					if [ $inc4 = define.h -o $inc4 = machine.h -o \
+								$inc4 = modlsigs.h -o $inc4 = postplevs.h ] ; then
+							dir='../..'
+					else
+							dir='../include'
+					fi
+					echo "$filex.f :	$dir/$inc4" >> incout
+					if [ -n "$inc4" ] ; then
+						echo "	Scanning $inc4"
+					fi
+					grep '#include' $dir/$inc4 
+					if [ $? -eq 0 ] ; then
+						echo "Too many nesting levels"
+						exit 8
+					fi
+				done
+			done
+		done
+	done
+	if [ -s incout ] ; then
+		cat incout >>Makefile
+	fi
+done
+rm incout 2>/dev/null
+exit 0

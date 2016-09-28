@@ -1,0 +1,23 @@
+
+#  ------------------------------------------------------------------------
+#  ---------------------------------------
+#  $1=UFILE - pure byte stream bufr file to be read (path/filename)
+#  $2=BFILE - fortran blocked bufr file to be created (path/filename)
+#  $3=CPLAT - platform type (sgi,hp,sun,cray,etc)
+#  ------------------------------------------------------------------------
+
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir 
+
+UFILE=$1
+BFILE=$2
+CPLAT=$3
+CWORD=block
+
+$ETC_DIR/bufrblunbl $1 $2 $CWORD $3
+if [ $? -ne 0 ] ; then
+	exit 8
+fi

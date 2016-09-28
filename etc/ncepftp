@@ -1,0 +1,39 @@
+#!/bin/sh
+#
+year=`date +%F | cut -c 1-4`
+month=`date +%F | cut -c 6-7`
+day=`date +%F | cut -c 9-10`
+hour=00
+cc=1
+while [ $cc -eq 1 ] ; do
+	echo year=$year month=$month day=$day hour=$hour
+	echo "Is this date and time OK? ==>(y/n)"
+	read yn
+	if [ "$yn" = n ] ; then
+		echo "Type year month day hour"
+		read year month day hour
+	else
+		cc=0
+	fi
+done
+#
+if [ -s sanl.$year$month$day$hour.ieee ] ; then
+	if [ -s sfcanl.$year$month$day$hour.ieee ] ; then
+		echo " both sanl.$year$month$day$hour.ieee and sfcanl.$year$month$day$hour.ieee files exist.  exit without ftp."
+	echo $year $month $day $hour >ncepftp.out
+		exit
+	fi
+fi
+#
+cat > ftp.dat.$$ <<EOF
+user anonymous shong@yonsei.ac.kr
+cd /pub/data/nccf/com/gfs/prod/gfs.$year$month$day$hour
+hash
+get gfs.t${hour}z.sanl sanl.$year$month$day$hour.ieee
+get gfs.t${hour}z.sfcanl sfcanl.$year$month$day$hour.ieee
+quit
+EOF
+#
+ftp -n ftpprd.ncep.noaa.gov <ftp.dat.$$
+rm ftp.dat.$$
+echo $year $month $day $hour >ncepftp.out

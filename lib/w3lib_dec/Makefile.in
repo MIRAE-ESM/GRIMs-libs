@@ -1,0 +1,38 @@
+LIB = w3lib.a
+OBJS = aea.o assign.o baread.o datimx.o \
+gbyte.o gbytes.o getgbss.o getgir.o iw3jdn.o iw3pds.o ixgb.o pdsens.o pdseup.o \
+rdgb.o sbyte.o sbytes.o skgb.o swap32.o unpindx.o w3fi01.o w3fi04.o w3fi63.o \
+w3fi83.o w3fp11.o w3fs26.o w3pack.o w3tagb.o xmovex.o baopen.o \
+nainit.o  naopen.o nrdgb.o ngetgir.o nbaread.o nixgb.o nskgb.o
+
+SHELL = @SHELL@
+AR = @AR@
+CP = @CP@
+RM = @RM@
+CD = @CD@
+CHMOD = @CHMOD@
+
+LIB_DIR = @LIB_DIR@
+F77 = @W3LIB_F77@
+FORT_FLAGS = @W3LIB_FORT_FLAGS@
+LOAD_FLAGS = @W3LIB_LOAD_FLAGS@
+INCLUDE_DIR = @W3LIB_INCLUDE_DIR@
+
+${LIB} : ${OBJS}
+	${AR} -r $@ $?
+	${CP} -f ${LIB} ${LIB_DIR}; \
+	${CD} ${LIB_DIR}; \
+	${CHMOD} 755 ${LIB}
+
+.SUFFIXES :
+
+.SUFFIXES : .o .f90
+
+.f90.o :
+	${F77} ${FORT_FLAGS} -c $<
+
+clean :
+	- ${RM} -rf *.o *.a core rii_files
+	- ${RM} -rf rii_files
+
+# DO NOT DELETE

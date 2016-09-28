@@ -1,0 +1,117 @@
+set -x
+if [ $# -eq 0 ] ; then
+	echo 'Usage: grsplit [-l] [-S listfile] [-O outdir] grib-file'
+	ech "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+#
+#  -l  ... creates variable name list file (grsplit.list)
+#  -S file ... file containing a list of variables to be extracted
+#
+set -- `getopt SO:lH $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+  case $1 in
+    -S) Sarg=$2 ;;
+    -O) Oarg=$2 ;;
+    -l) lflag=$1 ;;
+  esac
+  shift
+done
+shift
+#
+if [ -z "$USER" ] ; then
+  user=$LOGNAME
+else
+  user=$USER
+fi
+#
+if [ $err -ne 0 ] ; then
+	echo 'Usage: grsplit [-l] [-H] [-S listfile] grib-file'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+if [ -n "$Sarg" ] ; then
+	if [ ! -s $Sarg ] ; then
+		echo "List file $Sarg empty"
+		echo "`date` $0: List file $Sarg empty." >>ERROR.out
+		exit 8
+	fi
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+GRTRANDIR=`pwd`
+echo "GRTRANDIR=$GRTRANDIR"
+export GRTRANDIR
+cd $currdir
+#
+pwd=`pwd`
+tmp=tmp
+#
+mapsorc=$1
+hmaps=`echo $mapsorc | cut -c 1`
+if [ "$hmaps" != '/' ] ; then
+  mapsorc=$pwd/$mapsorc
+fi
+#
+mapsx=`echo $mapsorc | sed 's%/[^/]*$%%g' | sed 's%^.*/%%g'`
+mkdir -p /$tmp/$user/$mapsx/$$ 2>/dev/null
+cd /$tmp/$user/$mapsx/$$
+#
+rm namlpre.[0-9] namlpre.tmp namlpre.data 2>/dev/null
+#
+if [ ! -s $mapsorc ] ; then
+	echo " File does not exist."
+	echo "`date` $0: $mapsorc does not exist." >>ERROR.out
+	exit 8
+fi
+#
+echo ' '
+fnilist=
+if [ -n "$Sarg" ] ; then
+	xx=`echo $Sarg | cut -c 1`
+	if [ "$xx" != '/' ] ; then
+		fnilist=$pwd/$Sarg
+	else
+		fnilist=$Sarg
+	fi
+fi
+listonly=
+if [ -n "$lflag" ] ; then
+ listonly=.TRUE.
+fi
+cat >namlpre.data <<EOF
+ &NAMPRE
+     FNKPDS5='$GRTRANDIR/grib1.kpds5.vsn21',
+     FNKPDS6='$GRTRANDIR/grib1.kpds6.vsn21',
+     $fnlist
+     $listonly
+ &END
+EOF
+echo 1 >>namlpre.data
+echo "$mapsorc" >>namlpre.data
+#
+echo '\n\n'
+$GRTRANDIR/grsplit.x 2>stderr$$.grsplit
+cc=$?
+if [ $cc -ne 0 ] ; then
+	echo ' Execution failed'
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+odir=$currdir
+if [ -n "$Oarg" ] ; then
+	odir=$Oarg
+	mkdir -p $odir 2>/dev/null
+fi
+for file in `cat grsplit.list`
+do
+	mv $file $odir/.
+done
+mv grsplit.list namlpre.* stderr$$.grsplit $odir/.  2>/dev/null
+cd /$tmp/$user/$mapsx
+rm -rf $$
+exit 0

@@ -1,0 +1,75 @@
+#!/bin/sh
+#
+set -x
+if [ $# -ne 1 ] ; then
+  echo "Usage: prmap runscript"
+  exit 8
+fi
+file=$1
+#
+RPROJ=`grep "^RPROJ=" $file | cut -d"=" -f2`
+RTRUTH=`grep "^RTRUTH=" $file | cut -d"=" -f2`
+RORIENT=`grep "^RORIENT=" $file | cut -d"=" -f2`
+RDELX=`grep "^RDELX=" $file | cut -d"=" -f2`
+RDELY=`grep "^RDELY=" $file | cut -d"=" -f2`
+RCENLAT=`grep "^RCENLAT=" $file | cut -d"=" -f2`
+RCENLON=`grep "^RCENLON=" $file | cut -d"=" -f2`
+RLFTGRD=`grep "^RLFTGRD=" $file | cut -d"=" -f2`
+RBTMGRD=`grep "^RBTMGRD=" $file | cut -d"=" -f2`
+CPROJ=`grep "^CRCOJ=" $file | cut -d"=" -f2`
+CTRUTH=`grep "^CTRUTH=" $file | cut -d"=" -f2`
+CORIENT=`grep "^CORIENT=" $file | cut -d"=" -f2`
+CDELX=`grep "^CDELX=" $file | cut -d"=" -f2`
+CDELY=`grep "^CDELY=" $file | cut -d"=" -f2`
+CCENLAT=`grep "^CCENLAT=" $file | cut -d"=" -f2`
+CCENLON=`grep "^CCENLON=" $file | cut -d"=" -f2`
+CLFTGRD=`grep "^CLFTGRD=" $file | cut -d"=" -f2`
+CBTMGRD=`grep "^CBTMGRD=" $file | cut -d"=" -f2`
+#
+echo $file | grep '/' >/dev/null
+if [ $? -ne 0 ] ; then
+  configure_scr="./configure-scr"
+else
+  configure_scr=`echo $file | sed 's?[^/]*$??g'`configure-scr
+fi
+if [ ! -s $configure_scr ] ; then
+  echo "configure_scr=$configure_scr does not exist"
+  exit 8
+fi
+MODLDIR=`grep "^MODEL_DIR=" $configure_scr | cut -d'=' -f2`
+IGRD=`grep '#define _igrd_ ' $MODLDIR/define.h | awk '{print $3}'`
+JGRD=`grep '#define _jgrd_ ' $MODLDIR/define.h | awk '{print $3}'`
+IGRD1=`expr $IGRD + 1`
+JGRD1=`expr $JGRD + 1`
+#
+cat >prmap.parm <<EOF
+ &namloc
+ IGRD1=$IGRD1
+ JGRD1=$JGRD1
+ RPROJ=$RPROJ
+ RTRUTH=$RTRUTH
+ RORIENT=$RORIENT
+ RDELX=$RDELX
+ RDELY=$RDELY
+ RCENLAT=$RCENLAT
+ RCENLON=$RCENLON
+ RLFTGRD=$RLFTGRD
+ RBTMGRD=$RBTMGRD
+ &end
+EOF
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+PRMAPDIR=`pwd`
+echo "PRMAPDIR=$PRMAPDIR"
+export PRMAPDIR
+cd $currdir
+#
+$PRMAPDIR/prmap.x <prmap.parm 2>stderr$$.prmap
+cc=$?
+if [ $cc -ne 0 ] ; then
+  echo ' prmap execution failed'
+  exit 8
+fi
+rm stderr$$.prmap

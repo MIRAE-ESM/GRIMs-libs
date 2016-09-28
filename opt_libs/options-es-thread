@@ -1,0 +1,40 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=c++
+CPP=/usr/lib/cpp
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options
+#
+F77=f90
+FORT_FLAGS="-Cvopt-f3 -ew -I./MODS -llapack_64 -Pauto" 
+LOAD_FLAGS="-Cvopt-f3 -ew -I./MODS -llapack_64 -Pauto"
+EXTRA_LIBS="-lfft_64 -lblas_64"
+#
+#  UTIL
+#
+UTIL_F77=f90
+UTIL_FORT_FLAGS="-Cvopt -f3 -ew -I./MODS -llapack_64 -Pauto"
+UTIL_LOAD_FLAGS="-Cvopt -f3 -ew -I./MODS -llapack_64 -Pauto"
+#
+W3LIB_F77=f90
+W3LIB_FORT_FLAGS="-f3 -ew -Pauto"
+W3LIB_LOAD_FLAGS="-f3 -ew -Pauto"
+#
+FFT99M=
+#
+BFLIB_F77=f90
+BFLIB_FORT_FLAGS=
+BFLIB_LOAD_FLAGS=
+#
+MTNSUBMIT=

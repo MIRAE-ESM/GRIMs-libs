@@ -1,0 +1,42 @@
+SHELL=/bin/sh
+AR="ar -s"
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP=$LIBS_DIR/etc/util_mac/cppmac
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  use this for Absoft PRO-Fortran compiler
+#
+#  Model compiler options (except fcst related)
+#
+F77=f90
+FORT_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_"
+LOAD_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=f90
+UTIL_FORT_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_"
+UTIL_LOAD_FLAGS="-N113 -O -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+#
+W3LIB_F77=f90
+W3LIB_FORT_FLAGS="-O -YEXT_NAMES=LCS -YEXT_SFX=_"
+W3LIB_LOAD_FLAGS="-O -YEXT_NAMES=LCS -YEXT_SFX=_ -lU77"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=pgf90
+BFLIB_FORT_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore"
+BFLIB_LOAD_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore"
+#
+MTNSUBMIT=

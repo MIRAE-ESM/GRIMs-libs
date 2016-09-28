@@ -1,0 +1,106 @@
+    SUBROUTINE W3TAGB(PROG,KYR,JD,LF,ORG)
+!$$$   SUBR PROGRAM DOCUMENTATION BLOCK
+!
+! SUBROUTINE: W3TAGB         OPERATIONAL JOB IDENTIFIER
+!   AUTHOR: JACK NEWELL           W/NMC42    DATE: 85-04-08
+!
+! ABSTRACT: PRINTS IDENTIFYING INFORMATION FOR OPERATIONAL
+!   JOBS. CALLED AT THE BEGINNING OF A JOB, W3TAGB PRINTS
+!   THE JOB NAME, THE YEAR AND JULIAN DAY OF ITS
+!   COMPILATION, AND THE RESPONSIBLE ORGANIZATION. CALLED
+!   AT THE END OF A JOB, W3TAGE PRINTS A LINE STATING THE
+!   JOB NAME AND THAT IT HAS ENDED.
+!
+! PROGRAM HISTORY LOG:
+!   85-04-08  JACK NEWELL
+!   89-06-30  R.E.JONES   CONVERT TO MICROSOFT FORTRAN 4.10
+!   90-06-04  R.E.JONES   CONVERT TO SUN FORTRAN 1.3
+!   91-03-29  R.E.JONES   CONVERT TO SiliconGraphics FORTRAN
+!   91-06-01  R.E.JONES   ADD DATE-TIME
+!   93-03-29  R.E.JONES   ADD SAVE STATEMENT
+!   93-11-10  R.E.JONES   ADD DAY OF YEAR, ADD DAY OF WEEK,
+!                         ADD JULIAN DAY NUMBER
+!
+! USAGE:  CALL W3TAGB(PROG,KYR,JD,LF,ORG)
+!         CALL W3TAGE(PROG)
+!
+!   INPUT VARIABLES:
+!     NAMES  INTERFACE DESCRIPTION OF VARIABLES AND TYPES
+!     ------ --------- -----------------------------------------------
+!     PROG   ARG LIST  PROGRAM NAME   CHARACTER*8
+!     KYR    ARG LIST  YEAR OF COMPILATION   INTEGER*4
+!     JD     ARG LIST  JULIAN DAY OF COMPILATION   INTEGER*4
+!     LF     ARG LIST  HUNDRETHS OF JULIAN DAY OF COMPILATION
+!                      INTEGER *4  (RANGE IS 0 TO 99 INCLUSIVE)
+!     ORG    ARG LIST  ORGANIZATION CODE (SUCH AS WD42)
+!                      CHARACTER*6
+!
+!   OUTPUT VARIABLES:
+!     NAMES  INTERFACE DESCRIPTION OF VARIABLES AND TYPES
+!     ----------------------------------------------------------------
+!     DDATE  PRINT     YEAR AND JULIAN DAY (NEAREST HUNDRETH)
+!            FILE      OF COMPILATION  REAL*8
+!
+!   SUBPROGRAMS CALLED:
+!               W3LIB:  DATIMX
+!
+!   REMARKS: DOUBLE PRECISION USED IN ORDER TO HAVE AT LEAST
+!            SEVEN DECIMAL DIGITS ACCURACY FOR VALUE OF DDATE
+!
+!   WARNING: IDATE, TIME ARE NOT STANDARD FORTRAN 77, THIS 
+!            SUBROUTINE IS NOT PORTABLE WITH OUT CHANGES.
+!
+! ATTRIBUTES:
+!   LANGUAGE: SiliconGraphics 3.5 FORTRAN 77
+!   MACHINE:  SiliconGraphics IRIS-4D/25, 35, INDIGO
+!
+!$$$
+!
+      CHARACTER(len=6)  ::  ORG
+      CHARACTER(len=8)  ::  PROG
+      CHARACTER(len=3)  ::  JMON(12)
+      CHARACTER(len=3)  ::  DAYW(7)
+      REAL              ::  DDATE
+      REAL              ::  DLF
+      REAL              ::  DJD
+      REAL              ::  DYR
+      INTEGER           ::  NOW(14)
+
+      SAVE
+
+      DATA  JMON/'JAN','FEB','MAR','APR','MAY','JUN',                          &
+                 'JUL','AUG','SEP','OCT','NOV','DEC'/
+      DATA  DAYW/'SUN','MON','TUE','WEN','THU','FRI','SAT'/
+
+      DYR   = KYR
+      DYR   = 1.0D+03 * DYR
+      DJD   = JD
+      DLF   = LF
+      DLF   = 1.0D-02 * DLF
+      DDATE = DYR + DJD + DLF
+      PRINT 600
+  600    FORMAT(//,5X,18('* . '))
+      PRINT 601, PROG, DDATE, ORG
+  601    FORMAT(10X,'PROGRAM ',A8,' HAS BEGUN. COMPILED ',F8.2,                &
+      5X, 'ORGANIZATION ',A6)
+      CALL DATIMX(NOW)
+      PRINT 602, JMON(NOW(7)),NOW(6),NOW(8),NOW(5),NOW(4),                     &
+      NOW(3),NOW(2),NOW(13),DAYW(NOW(12)),NOW(9)
+  602    FORMAT(10X,'STARTING DATE-TIME  ',A3,1X,I2.2,',',                     &
+      I4.4,2X,2(I2.2,':'),I2.2,'.',I3.3,2X,I3,2X,A3,2X,I8,//)
+      RETURN
+
+      ENTRY W3TAGE(PROG)
+
+      CALL DATIMX(NOW)
+      PRINT 603, JMON(NOW(7)),NOW(6),NOW(8),NOW(5),NOW(4),                     &
+      NOW(3),NOW(2),NOW(13),DAYW(NOW(12)),NOW(9)
+  603    FORMAT(//,10X,'ENDING DATE-TIME    ',A3,1X,I2.2,',',                  &
+      I4.4,2X,2(I2.2,':'),I2.2,'.',I3.3,2X,I3,2X,A3,2X,I8)
+      PRINT 604,PROG
+  604    FORMAT(10X,'PROGRAM ',A8,' HAS ENDED.  SiliconGraphics',              &
+      ' IRIS-4D/25')
+      PRINT 605
+  605    FORMAT(5X,18('* . '))
+      RETURN
+      END

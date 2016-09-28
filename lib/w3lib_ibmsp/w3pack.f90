@@ -1,0 +1,3314 @@
+   SUBROUTINE W3FI58(IFIELD,NPTS,NWORK,NPFLD,NBITS,LEN,KMIN)
+! INTEGER=64
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK  ***
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI58   - PACK POSITIVE DIFFERENCES IN LEAST BITS
+!   PRGMMR:  ALLARD, R.       ORG:  NMC411        DATE:  JULY 1987
+!
+! ABSTRACT:  CONVERTS AN ARRAY OF INTEGER NUMBERS INTO AN ARRAY OF
+!   POSITIVE DIFFERENCES (NUMBER(S) - MINIMUM VALUE) AND PACKS THE
+!   MAGNITUDE OF EACH DIFFERENCE RIGHT-ADJUSTED INTO THE LEAST
+!   NUMBER OF BITS THAT HOLDS THE LARGEST DIFFERENCE.
+!
+! PROGRAM HISTORY LOG:
+!   87-09-02  ALLARD
+!   88-10-02  R.E.JONES   CONVERTED TO CDC CYBER 205 FTN200 FORTRAN
+!   90-05-17  R.E.JONES   CONVERTED TO CRAY CFT77 FORTRAN
+!   90-05-18  R.E.JONES   CHANGE NAME VBIMPK TO W3LIB NAME W3FI58
+!
+! USAGE:  CALL W3FI58(IFIELD,NPTS,NWORK,NPFLD,NBITS,LEN,KMIN)
+!
+!   INPUT:
+!
+!     IFIELD - ARRAY OF INTEGER DATA FOR PROCESSING
+!     NPTS   - NUMBER OF DATA VALUES TO PROCESS IN IFIELD (AND NWORK)
+!              WHERE, NPTS > 0
+!
+!   OUTPUT:
+!
+!     NWORK  - WORK ARRAY WITH INTEGER DIFFERENCE
+!     NPFLD  - ARRAY FOR PACKED DATA
+!              (USER IS RESPONSIBLE FOR AN ADEQUATE DIMENSION.)
+!     NBITS  - NUMBER OF BITS USED TO PACK DATA WHERE, 0 < NBITS < 32
+!              (THE MAXIMUM DIFFERENCE WITHOUT OVERFLOW IS 2**31 -1)
+!     LEN    - NUMBER OF PACKED BYTES IN NPFLD (SET TO 0 IF NO PACKING)
+!              WHERE, LEN = (NBITS * NPTS + 7) / 8 WITHOUT REMAINDER
+!     KMIN   - MINIMUM VALUE (SUBTRACTED FROM EACH DATUM). IF THIS
+!              PACKED DATA IS BEING USED FOR GRIB DATA, THE
+!              PROGRAMER WILL HAVE TO CONVERT THE KMIN VALUE TO AN
+!              IBM370 32 BIT FLOATING POINT NUMBER.
+!
+!   SUBPROGRAMS CALLED:
+!
+!     W3LIB:  SBYTES, SBYTE
+!
+!   EXIT STATES:  NONE
+!
+!     NOTE:  LEN = 0, NBITS = 0, AND NO PACKING PERFORMED IF
+!
+!     (1) KMAX = KMIN  (A CONSTANT FIELD)
+!     (2) NPTS < 1  (SEE INPUT ARGUMENT)
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN
+!   MACHINE:  CRAY Y-MP8/832
+!
+!$$$
+!
+   INTEGER  IFIELD(*)
+   INTEGER  NPFLD(*)
+   INTEGER  NWORK(*)
+!
+   EQUIVALENCE (BIGDIF,IX)
+!
+   DATA  KZERO / 0 /
+!
+! / / / / / /
+!
+   LEN   = 0
+   NBITS = 0
+   IF (NPTS.LE.0) GO TO 3000
+!
+! FIND THE MAX-MIN VALUES IN INTEGER FIELD (IFIELD).
+!
+   KMAX = IFIELD(1)
+   KMIN = KMAX
+   DO 1000 I = 2,NPTS
+     KMAX = MAX(KMAX,IFIELD(I))
+     KMIN = MIN(KMIN,IFIELD(I))
+ 1000 CONTINUE
+!
+! IF A CONSTANT FIELD, RETURN WITH NO PACKING AND 'LEN' AND 'NBITS' SET
+! TO ZERO.
+!
+   IF (KMAX.EQ.KMIN) GO TO 3000
+!
+! DETERMINE LARGEST DIFFERENCE IN IFIELD AND FLOAT (BIGDIF).
+!
+   BIGDIF = KMAX - KMIN
+!
+! RIGHT-ADJUST THE EXPONENT OF BIGDIF AND SAVE.  (32767 = 7FFF HEX).
+!
+!     N = IAND(RSHIFT(IX,16),32767)
+!
+! REMOVE CRAY BIAS OF 16384 (4000 HEX) FROM CRAY EXPONENT.
+! (BASE TO ITS NTH POWER GIVES THE DENOMINATOR THAT
+! EXPRESSES THE NUMBER AS A PROPER FRACTION.)
+!
+!     N = N - 16384
+!
+! AFTER ADJUSTMENT N IS THE LEAST POWER OF 2 SUCH THAT (2**N) > BIGDIF.
+!
+   DO I=1,32
+     DIF=2**I
+     IF( DIF .GT. BIGDIF ) THEN
+       N = I
+       GO TO 1234
+     ENDIF
+   ENDDO
+1234  CONTINUE
+!
+! FORM DIFFERENCES IN NWORK ARRAY.
+!
+   DO 2000 K = 1,NPTS
+     NWORK(K) = IFIELD(K) - KMIN
+ 2000 CONTINUE
+!
+! PACK EACH MAGNITUDE IN NBITS (NBITS = THE LEAST POWER OF 2 OR 'N')
+!
+   NBITS  = N
+   KOFF   = 0
+   ISKIP  = 0
+!
+!     USE NCAR ARRAY BIT PACKER SBYTES  (GBYTES PACKAGE)
+!
+   JPTS = NPTS
+   CALL SBYTES(NPFLD,NWORK,KOFF,NBITS,ISKIP,JPTS)
+!
+! ADD 7 ZERO-BITS AT END OF PACKED DATA TO INSURE A BYTE BOUNDARY.
+!     USE NCAR WORD BIT PACKER SBYTE
+!
+   NOFF = NBITS * JPTS
+   CALL SBYTE(NPFLD,KZERO,NOFF,7)
+!
+! DETERMINE BYTE LENGTH (LEN) OF PACKED FIELD (NPFLD).
+!
+   LEN = (NOFF + 7) / 8
+!
+ 3000 CONTINUE
+   RETURN
+!
+   END
+   SUBROUTINE W3FI59(FIELD,NPTS,NBITS,NWORK,NPFLD,ISCALE,LEN,RMIN)
+! INTEGER=64
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    W3FI59      FORM AND PACK POSITIVE, SCALED DIFFERENCES
+!   PRGMMR:  ALLARD, R.      ORG: NMC41      DATE:  84-08-01
+!
+! ABSTRACT:  CONVERTS AN ARRAY OF SINGLE PRECISION REAL NUMBERS INTO
+!   AN ARRAY OF POSITIVE SCALED DIFFERENCES (NUMBER(S) - MINIMUM VALUE),
+!   IN INTEGER FORMAT AND PACKS THE ARGUMENT-SPECIFIED NUMBER OF
+!   SIGNIFICANT BITS FROM EACH DIFFERENCE.
+!
+! PROGRAM HISTORY LOG:
+!   84-08-01  ALLARD      ORIGINAL AUTHOR
+!   90-05-17  R.E.JONES   CONVERT TO CRAY CFT77 FORTRAN
+!   90-05-18  R.E.JONES   CHANGE NAME PAKMAG TO W3LIB NAME W3FI59
+!
+! USAGE:    CALL W3FI59(FIELD,NPTS,NBITS,NWORK,NPFLD,ISCALE,LEN,RMIN)
+!   INPUT ARGUMENT LIST:
+!     FIELD - ARRAY OF FLOATING POINT DATA FOR PROCESSING  (REAL)
+!     NPTS  - NUMBER OF DATA VALUES TO PROCESS IN FIELD (AND NWORK)
+!             WHERE, NPTS > 0
+!     NBITS - NUMBER OF SIGNIFICANT BITS OF PROCESSED DATA TO BE PACKED
+!             WHERE, 0 < NBITS < 33
+!
+!   OUTPUT ARGUMENT LIST:
+!     NWORK - ARRAY FOR INTEGER CONVERSION  (INTEGER)
+!             IF PACKING PERFORMED (SEE NOTE BELOW), THE ARRAY WILL
+!             CONTAIN THE PRE-PACKED, RIGHT ADJUSTED, SCALED, INTEGER
+!             DIFFERENCES UPON RETURN TO THE USER.
+!             (THE USER MAY EQUIVALENCE FIELD AND NWORK.  SAME SIZE.)
+!     NPFLD - ARRAY FOR PACKED DATA  (INTEGER)
+!             (DIMENSION MUST BE AT LEAST (NBITS * NPTS) / 64 + 1  )
+!     ISCALE- POWER OF 2 FOR RESTORING DATA, SUCH THAT
+!             DATUM = (DIFFERENCE * 2**ISCALE) + RMIN
+!     LEN   - NUMBER OF PACKED BYTES IN NPFLD (SET TO 0 IF NO PACKING)
+!             WHERE, LEN = (NBITS * NPTS + 7) / 8 WITHOUT REMAINDER
+!     RMIN  - MINIMUM VALUE (REFERENCE VALUE SUBTRACTED FROM INPUT DATA)
+!             THIS IS A CRAY FLOATING POINT NUMBER, IT WILL HAVE TO BE
+!             CONVERTED TO AN IBM370 32 BIT FLOATING POINT NUMBER AT
+!             SOME POINT IN YOUR PROGRAM IF YOU ARE PACKING GRIB DATA.
+!
+! REMARKS:  LEN = 0 AND NO PACKING PERFORMED IF
+!
+!        (1)  RMAX = RMIN  (A CONSTANT FIELD)
+!        (2)  NBITS VALUE OUT OF RANGE  (SEE INPUT ARGUMENT)
+!        (3)  NPTS VALUE LESS THAN 1  (SEE INPUT ARGUMENT)
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN
+!   MACHINE:  CRAY Y-MP8/832
+!
+!$$$
+!
+   REAL    FIELD(*)
+!
+   INTEGER NPFLD(*)
+   INTEGER NWORK(*)
+!
+   EQUIVALENCE (BIGDIF,IX)
+!
+   DATA KZERO / 0 /
+!
+! / / / / / /
+!
+   LEN    = 0
+   ISCALE = 0
+   IF (NBITS.LE.0.OR.NBITS.GT.32) GO TO 3000
+   IF (NPTS.LE.0) GO TO 3000
+!
+! FIND THE MAX-MIN VALUES IN FIELD.
+!
+   RMAX = FIELD(1)
+   RMIN = RMAX
+   DO 1000 K = 2,NPTS
+     RMAX = AMAX1(RMAX,FIELD(K))
+     RMIN = AMIN1(RMIN,FIELD(K))
+ 1000 CONTINUE
+!
+! IF A CONSTANT FIELD, RETURN WITH NO PACKING PERFORMED AND 'LEN' = 0.
+!
+   IF (RMAX.EQ.RMIN) GO TO 3000
+!
+! DETERMINE LARGEST DIFFERENCE IN FIELD (BIGDIF).
+!
+   BIGDIF = RMAX - RMIN
+!
+! RIGHT ADJUST THE EXPONENT OF BIGDIF AND SAVE.  (32767 = 7FFF HEX).
+!
+!     N = IAND(RSHIFT(IX,16),32767)
+!
+! REMOVE CRAY BIAS OF 16384 (4000 HEX) FROM CRAY EXPONENT.
+! (BASE TO ITS NTH POWER GIVES THE DENOMINATOR THAT
+! EXPRESSES THE NUMBER AS A PROPER FRACTION.)
+!
+!     N =  N - 16384
+!
+!     N IS THE LEAST POWER OF 2 SUCH THAT (2**N) > BIGDIF.
+!
+   DO I=1,32
+     DIF=2**I
+     IF( DIF .GT. BIGDIF ) THEN
+       N = I
+       GO TO 2345
+     ENDIF
+   ENDDO
+2345  CONTINUE
+!
+! FORM DIFFERENCES, RESCALE, AND CONVERT TO INTEGER FORMAT.
+!
+   TWON = 2.0 ** (NBITS - N)
+   DO 2000 K = 1,NPTS
+     NWORK(K) = NINT( (FIELD(K) - RMIN) * TWON )
+ 2000 CONTINUE
+!
+! PACK THE MAGNITUDES (RIGHTMOST NBITS OF EACH WORD).
+!
+! NOTE: NBITS = NUMBER OF SIGNIFICANT BITS OF THE MAGNITUDE SAVED.
+!       N = NUMBER OF BITS TO LEFT OF BINARY POINT IN SCALED INTEGER.
+!       NBITS-N = NUMBER OF FRACTION BITS TO RIGHT OF BINARY POINT IN
+!            SCALED INTEGER.
+!
+   KOFF  = 0
+   ISKIP = 0
+!
+!     USE NCAR ARRAY BIT PACKER SBYTES  (GBYTES PACKAGE)
+!
+   CALL SBYTES(NPFLD,NWORK,KOFF,NBITS,ISKIP,NPTS)
+!
+! ADD 7 ZERO-BITS AT END OF PACKED DATA TO INSURE BYTE BOUNDARY.
+!     USE NCAR WORD BIT PACKER SBYTE
+!
+   NOFF = NBITS * NPTS
+   CALL SBYTE(NPFLD,KZERO,NOFF,7)
+!
+! DETERMINE BYTE LENGTH (LEN) OF PACKED FIELD (NPFLD).
+!
+   LEN = (NOFF + 7) / 8
+!
+! SET POWER OF 2 ARGUMENT NEEDED TO RESTORE DATA.
+!
+   ISCALE = N - NBITS
+!
+ 3000 CONTINUE
+   RETURN
+!
+   END
+   SUBROUTINE W3FI68 (ID, PDS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    W3FI68      CONVERT 25 WORD ARRAY TO GRIB PDS
+!   PRGMMR: R.E.JONES        ORG: W/NMC42    DATE: 91-05-14
+!
+! ABSTRACT: CONVERTS AN ARRAY OF 25 INTEGER WORDS INTO A EDITION 1
+!   GRIB PRODUCT DEFINITION SECTION (PDS) OF 28 BYTES OR GREATER.
+!
+! PROGRAM HISTORY LOG:
+!   91-05-08  R.E.JONES
+!   92-09-25  R.E.JONES   CHANGE TO 25 WORDS OF INPUT, LEVEL
+!                         CAN BE IN TWO WORDS. (10,11)
+!   93-01-09  R.E.JONES   CHANGE FOR TIME RANGE INDICATOR IF 10
+!                         STORE TIME P1 IN PDS BYTES 19-20.
+!   93-01-26  R.E.JONES   CORRECTION FOR FIXED HEIGHT ABOVE GROUND
+!                         LEVEL.
+!   93-06-24  CAVANOUGH   MODIFIED PROGRAM TO ALLOW FOR GENERATION OF
+!                         PDS GREATER THAN 28 BYTES (THE DESIRED PDS
+!                         SIZE IS PASSED IN PD(1).
+!
+! USAGE:    CALL W3FI68 (ID, PDS)
+!   INPUT ARGUMENT LIST:
+!     ID       - 25 WORD INTEGER ARRAY
+!   OUTPUT ARGUMENT LIST:
+!     PDS      - 28 OR GREATER CHARACTER PDS FOR EDITION 1
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN 77
+!   MACHINE:  CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+   INTEGER        ID(*)
+!
+   CHARACTER * 1  PDS(*)
+!
+   SAVE
+!
+!     ID(1)  = NUMBER OF BYTES IN PRODUCT DEFINITION SECTION (PDS)
+!     ID(2)  = PARAMETER TABLE VERSION NUMBER
+!     ID(3)  = IDENTIFICATION OF ORIGINATING CENTER
+!     ID(4)  = MODEL IDENTIFICATION (ALLOCATED BY ORIGINATING CENTER)
+!     ID(5)  = GRID IDENTIFICATION
+!     ID(6)  = 0 IF NO GDS SECTION, 1 IF GDS SECTION IS INCLUDED
+!     ID(7)  = 0 IF NO BMS SECTION, 1 IF BMS SECTION IS INCLUDED
+!     ID(8)  = INDICATOR OF PARAMETER AND UNITS (TABLE 2)
+!     ID(9)  = INDICATOR OF TYPE OF LEVEL       (TABLE 3)
+!     ID(10) = VALUE 1 OF LEVEL  (0 FOR 1-100,102,103,105,107
+!              111,160   LEVEL IS IN ID WORD 11)
+!     ID(11) = VALUE 2 OF LEVEL
+!     ID(12) = YEAR OF CENTURY
+!     ID(13) = MONTH OF YEAR
+!     ID(14) = DAY OF MONTH
+!     ID(15) = HOUR OF DAY
+!     ID(16) = MINUTE OF HOUR   (IN MOST CASES SET TO 0)
+!     ID(17) = FCST TIME UNIT
+!     ID(18) = P1 PERIOD OF TIME
+!     ID(19) = P2 PERIOD OF TIME
+!     ID(20) = TIME RANGE INDICATOR
+!     ID(21) = NUMBER INCLUDED IN AVERAGE
+!     ID(22) = NUMBER MISSING FROM AVERAGES
+!     ID(23) = CENTURY  (20, CHANGE TO 21 ON JAN. 1, 2001)
+!     ID(24) = RESERVED - SET TO 0
+!     ID(25) = SCALING POWER OF 10
+!
+     PDS(1)  = CHAR(MOD(ID(1)/65536,256))
+     PDS(2)  = CHAR(MOD(ID(1)/256,256))
+     PDS(3)  = CHAR(MOD(ID(1),256))
+     PDS(4)  = CHAR(ID(2))
+     PDS(5)  = CHAR(ID(3))
+     PDS(6)  = CHAR(ID(4))
+     PDS(7)  = CHAR(ID(5))
+     PDS(8)  = CHAR(IOR(ISHFT(ID(6),7),                                        &
+               ISHFT(ID(7),6)))
+     PDS(9)  = CHAR(ID(8))
+     PDS(10) = CHAR(ID(9))
+     I9      = ID(9)
+!
+!       TEST TYPE OF LEVEL TO SEE IF LEVEL IS IN TWO
+!       WORDS OR ONE
+!
+     IF ((I9.GE.1.AND.I9.LE.100).OR.I9.EQ.102.OR.                              &
+          I9.EQ.103.OR.I9.EQ.105.OR.I9.EQ.107.OR.                              &
+          I9.EQ.109.OR.I9.EQ.111.OR.I9.EQ.113.OR.                              &
+          I9.EQ.160) THEN
+       LEVEL   = ID(11)
+       IF (LEVEL.LT.0) THEN
+         LEVEL = - LEVEL
+         LEVEL = IOR(LEVEL,32768)
+       END IF
+       PDS(11) = CHAR(MOD(LEVEL/256,256))
+       PDS(12) = CHAR(MOD(LEVEL,256))
+     ELSE
+       PDS(11) = CHAR(ID(10))
+       PDS(12) = CHAR(ID(11))
+     END IF
+     PDS(13) = CHAR(ID(12))
+     PDS(14) = CHAR(ID(13))
+     PDS(15) = CHAR(ID(14))
+     PDS(16) = CHAR(ID(15))
+     PDS(17) = CHAR(ID(16))
+     PDS(18) = CHAR(ID(17))
+!
+!       TEST TIME RANGE INDICATOR (PDS BYTE 21) FOR 10
+!       IF SO PUT TIME P1 IN PDS BYTES 19-20.
+!
+     IF (ID(20).EQ.10) THEN
+       PDS(19) = CHAR(MOD(ID(18)/256,256))
+       PDS(20) = CHAR(MOD(ID(18),256))
+     ELSE
+       PDS(19) = CHAR(ID(18))
+       PDS(20) = CHAR(ID(19))
+     END IF
+     PDS(21) = CHAR(ID(20))
+     PDS(22) = CHAR(MOD(ID(21)/256,256))
+     PDS(23) = CHAR(MOD(ID(21),256))
+     PDS(24) = CHAR(ID(22))
+     PDS(25) = CHAR(ID(23))
+     PDS(26) = CHAR(ID(24))
+     ISCALE   = ID(25)
+     IF (ISCALE.LT.0) THEN
+       ISCALE = -ISCALE
+       ISCALE =  IOR(ISCALE,32768)
+     END IF
+     PDS(27) = CHAR(MOD(ISCALE/256,256))
+     PDS(28) = CHAR(MOD(ISCALE    ,256))
+     IF (ID(1).GT.28) THEN
+       K = ID(1) - 28
+       CALL SBYTES(PDS,0,224,8,0,K)
+     END IF
+!
+   RETURN
+   END
+   SUBROUTINE W3FI71 (IGRID, IGDS, IERR)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    W3FI71      MAKE ARRAY USED BY GRIB PACKER FOR GDS
+!   PRGMMR: R.E.JONES        ORG: W/NMC42    DATE: 91-05-14
+!
+! ABSTRACT: W3FI71 MAKES A 18 OR 91 WORD INTEGER ARRAY USED BY W3FI72
+!   GRIB PACKER TO MAKE THE GRID DESCRIPTION SECTION (GDS) - SECTION 2.
+!
+! PROGRAM HISTORY LOG:
+!   92-02-21  R.E.JONES
+!   92-07-01  M. FARLEY    ADDED REMARKS FOR 'IGDS' ARRAY ELEMENTS.
+!                          ADDED LAMBERT CONFORMAL GRIDS AND ENLARGED
+!                          IDGS ARRAY FROM 14 TO 18 WORDS.
+!   92-10-03  R.E.JONES    ADDED CORRECTIONS TO AWIPS GRIB TABLES
+!   92-10-16  R.E.JONES    ADD GAUSSIAN GRID 126 TO TABLES
+!   92-10-18  R.E.JONES    CORRECTIONS TO LAMBERT CONFORMAL TABLES
+!                          AND OTHER TABLES
+!   92-10-20  R.E.JONES    ADD GAUSSIAN GRID  98 TO TABLES
+!   93-01-25  R.E.JONES    ADD ON84 GRID 87, 106, 107 TO TABLES
+!   93-03-29  R.E.JONES    ADD GRIB GRIDS 1, 2, 3, 55, 56 TO TABLES
+!   93-03-29  R.E.JONES    ADD SAVE STATEMENT
+!   93-06-15  R.E.JONES    ADD GRIB GRIDS 37 TO 44 TO TABLES
+!   93-09-29  R.E.JONES    GAUSSIAN GRID DOCUMENT NOT CORRECT, W3FI74
+!                          WILL BE CHANGED TO AGREE WITH IT. GAUSSIAN
+!                          GRID 98 TABLE HAD WRONG VALUE IN TABLE.
+!   93-10-12  R.E.JONES    CHANGES FOR ON388 REV. OCT 8,1993 FOR
+!                          GRID 204, 208.
+!   93-10-13  R.E.JONES    CORRECTIONS FOR GRIDS 37-44, BYTES 7-8,
+!                          25-26 SET TO ALL BITS 1 FOR MISSING.
+!
+! USAGE:    CALL W3FI71 (IGRID, IGDS, IERR)
+!   INPUT ARGUMENT LIST:
+!     IGRID       - GRIB GRID NUMBER, OR OFFICE NOTE 84 GRID NUMBER
+!
+!   OUTPUT ARGUMENT LIST:
+!     IGDS      - 18 OR 91 WORD INTEGER ARRAY WITH INFORMATION
+!                 TO MAKE A GRIB GRID DESCRIPTION SECTION.
+!     IERR       - 0  CORRECT EXIT
+!                  1  GRID TYPE IN IGRID IS NOT IN TABLE
+!
+! REMARKS:
+!    1) OFFICE NOTE GRID TYPE 26 IS 6 IN GRIB, 26 IS AN
+!       INTERNATIONAL EXCHANGE GRID.
+!
+!    2) VALUES RETURNED IN 18-WORD INTEGER ARRAY IGDS VARY DEPENDING
+!       ON GRID REPRESENTATION TYPE.
+!
+!       LAT/LON GRID:
+!           IGDS( 1) = NUMBER OF VERTICAL COORDINATES
+!           IGDS( 2) = PV, PL OR 255
+!           IGDS( 3) = DATA REPRESENTATION TYPE (CODE TABLE 6)
+!           IGDS( 4) = NO. OF POINTS ALONG A LATITUDE
+!           IGDS( 5) = NO. OF POINTS ALONG A LONGITUDE MERIDIAN
+!           IGDS( 6) = LATITUDE OF ORIGIN (SOUTH - IVE)
+!           IGDS( 7) = LONGITUDE OF ORIGIN (WEST -IVE)
+!           IGDS( 8) = RESOLUTION FLAG (CODE TABLE 7)
+!           IGDS( 9) = LATITUDE OF EXTREME POINT (SOUTH - IVE)
+!           IGDS(10) = LONGITUDE OF EXTREME POINT (WEST - IVE)
+!           IGDS(11) = LATITUDE INCREMENT
+!           IGDS(12) = LONGITUDE INCREMENT
+!           IGDS(13) = SCANNING MODE FLAGS (CODE TABLE 8)
+!           IGDS(14) = ... THROUGH ...
+!           IGDS(18) =   ... NOT USED FOR THIS GRID
+!           IGDS(19) - IGDS(91) FOR GRIDS 37-44, NUMBER OF POINTS
+!                      IN EACH OF 73 ROWS.
+!
+!       GAUSSIAN GRID:
+!           IGDS( 1) = ... THROUGH ...
+!           IGDS(10) =   ... SAME AS LAT/LON GRID
+!           IGDS(11) = NUMBER OF LATITUDE LINES BETWEEN A POLE
+!                      AND THE EQUATOR
+!           IGDS(12) = LONGITUDE INCREMENT
+!           IGDS(13) = SCANNING MODE FLAGS (CODE TABLE 8)
+!           IGDS(14) = ... THROUGH ...
+!           IGDS(18) =   ... NOT USED FOR THIS GRID
+!
+!       SPHERICAL HARMONICS:
+!           IGDS( 1) = NUMBER OF VERTICAL COORDINATES
+!           IGDS( 2) = PV, PL OR 255
+!           IGDS( 3) = DATA REPRESENTATION TYPE (CODE TABLE 6)
+!           IGDS( 4) = J - PENTAGONAL RESOLUTION PARAMETER
+!           IGDS( 5) = K - PENTAGONAL RESOLUTION PARAMETER
+!           IGDS( 6) = M - PENTAGONAL RESOLUTION PARAMETER
+!           IGDS( 7) = REPRESENTATION TYPE (CODE TABLE 9)
+!           IGDS( 8) = REPRESENTATION MODE (CODE TABLE 10)
+!           IGDS( 9) = ... THROUGH ...
+!           IGDS(18) =   ... NOT USED FOR THIS GRID
+!           IGDS(19) - IGDS(91)
+!
+!       POLAR STEREOGRAPHIC:
+!           IGDS( 1) = NUMBER OF VERTICAL COORDINATES
+!           IGDS( 2) = PV, PL OR 255
+!           IGDS( 3) = DATA REPRESENTATION TYPE (CODE TABLE 6)
+!           IGDS( 4) = NO. OF POINTS ALONG X-AXIS
+!           IGDS( 5) = NO. OF POINTS ALONG Y-AXIS
+!           IGDS( 6) = LATITUDE OF ORIGIN (SOUTH -IVE)
+!           IGDS( 7) = LONGITUTE OF ORIGIN (WEST -IVE)
+!           IGDS( 8) = RESOLUTION FLAG (CODE TABLE 7)
+!           IGDS( 9) = LONGITUDE OF MERIDIAN PARALLEL TO Y-AXIS
+!           IGDS(10) = X-DIRECTION GRID LENGTH (INCREMENT)
+!           IGDS(11) = Y-DIRECTION GRID LENGTH (INCREMENT)
+!           IGDS(12) = PROJECTION CENTER FLAG (0=NORTH POLE ON PLANE,
+!                                              1=SOUTH POLE ON PLANE,
+!           IGDS(13) = SCANNING MODE FLAGS (CODE TABLE 8)
+!           IGDS(14) = ... THROUGH ...
+!           IGDS(18) =   .. NOT USED FOR THIS GRID
+!
+!       MERCATOR:
+!           IGDS( 1) = ... THROUGH ...
+!           IGDS(12) =   ... SAME AS LAT/LON GRID
+!           IGDS(13) = LATITUDE AT WHICH PROJECTION CYLINDER
+!                        INTERSECTS EARTH
+!           IGDS(14) = SCANNING MODE FLAGS
+!           IGDS(15) = ... THROUGH ...
+!           IGDS(18) =   .. NOT USED FOR THIS GRID
+!
+!       LAMBERT CONFORMAL:
+!           IGDS( 1) = NUMBER OF VERTICAL COORDINATES
+!           IGDS( 2) = PV, PL OR 255
+!           IGDS( 3) = DATA REPRESENTATION TYPE (CODE TABLE 6)
+!           IGDS( 4) = NO. OF POINTS ALONG X-AXIS
+!           IGDS( 5) = NO. OF POINTS ALONG Y-AXIS
+!           IGDS( 6) = LATITUDE OF ORIGIN (SOUTH -IVE)
+!           IGDS( 7) = LONGITUTE OF ORIGIN (WEST -IVE)
+!           IGDS( 8) = RESOLUTION FLAG (CODE TABLE 7)
+!           IGDS( 9) = LONGITUDE OF MERIDIAN PARALLEL TO Y-AXIS
+!           IGDS(10) = X-DIRECTION GRID LENGTH (INCREMENT)
+!           IGDS(11) = Y-DIRECTION GRID LENGTH (INCREMENT)
+!           IGDS(12) = PROJECTION CENTER FLAG (0=NORTH POLE ON PLANE,
+!                                              1=SOUTH POLE ON PLANE,
+!           IGDS(13) = SCANNING MODE FLAGS (CODE TABLE 8)
+!           IGDS(14) = NOT USED
+!           IGDS(15) = FIRST LATITUDE FROM THE POLE AT WHICH THE
+!                      SECANT CONE CUTS THE SPERICAL EARTH
+!           IGDS(16) = SECOND LATITUDE ...
+!           IGDS(17) = LATITUDE OF SOUTH POLE (MILLIDEGREES)
+!           IGDS(18) = LONGITUDE OF SOUTH POLE (MILLIDEGREES)
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN 77
+!   MACHINE:  CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+   INTEGER       IGRID
+   INTEGER       IGDS  (*)
+   INTEGER       GRD1  (18)
+   INTEGER       GRD2  (18)
+   INTEGER       GRD3  (18)
+   INTEGER       GRD5  (18)
+   INTEGER       GRD6  (18)
+   INTEGER       GRD21 (18)
+   INTEGER       GRD22 (18)
+   INTEGER       GRD23 (18)
+   INTEGER       GRD24 (18)
+   INTEGER       GRD25 (18)
+   INTEGER       GRD26 (18)
+   INTEGER       GRD27 (18)
+   INTEGER       GRD28 (18)
+   INTEGER       GRD29 (18)
+   INTEGER       GRD30 (18)
+   INTEGER       GRD33 (18)
+   INTEGER       GRD34 (18)
+   INTEGER       GRD37 (91)
+   INTEGER       GRD38 (91)
+   INTEGER       GRD39 (91)
+   INTEGER       GRD40 (91)
+   INTEGER       GRD41 (91)
+   INTEGER       GRD42 (91)
+   INTEGER       GRD43 (91)
+   INTEGER       GRD44 (91)
+!     INTEGER       GRD50 (18)
+   INTEGER       GRD55 (18)
+   INTEGER       GRD56 (18)
+   INTEGER       GRD61 (18)
+   INTEGER       GRD62 (18)
+   INTEGER       GRD63 (18)
+   INTEGER       GRD64 (18)
+   INTEGER       GRD85 (18)
+   INTEGER       GRD86 (18)
+   INTEGER       GRD87 (18)
+   INTEGER       GRD98 (18)
+   INTEGER       GRD100(18)
+   INTEGER       GRD101(18)
+   INTEGER       GRD103(18)
+   INTEGER       GRD104(18)
+   INTEGER       GRD105(18)
+   INTEGER       GRD106(18)
+   INTEGER       GRD107(18)
+   INTEGER       GRD126(18)
+   INTEGER       GRD201(18)
+   INTEGER       GRD202(18)
+   INTEGER       GRD203(18)
+   INTEGER       GRD204(18)
+   INTEGER       GRD205(18)
+   INTEGER       GRD206(18)
+   INTEGER       GRD207(18)
+   INTEGER       GRD208(18)
+   INTEGER       GRD209(18)
+   INTEGER       GRD210(18)
+   INTEGER       GRD211(18)
+   INTEGER       GRD212(18)
+   INTEGER       GRD213(18)
+   INTEGER       GRD214(18)
+!
+   SAVE
+!
+   DATA  GRD1  / 0, 255, 1,  73, 23, -48090,       0, 128,   48090,            &
+          0, 513699,513669, 22500, 64, 0, 0, 0, 0/
+   DATA  GRD2  / 0, 255, 0, 144, 73,  90000,       0, 128,  -90000,            &
+      -2500,   2500, 2500, 0, 0, 0, 0, 0, 0/
+   DATA  GRD3  / 0, 255, 0, 360,181,  90000,       0, 128,  -90000,            &
+      -1000,   1000, 1000, 0, 0, 0, 0, 0, 0/
+   DATA  GRD5  / 0, 255, 5,  53, 57,   7647, -133443,   8, -105000,            &
+     190500, 190500, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD6  / 0, 255, 5,  53, 45,   7647, -133443,   8, -105000,            &
+     190500, 190500, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD21 / 0, 255, 0,  37, 37,      0,       0, 128,   90000,            &
+     180000,   2500, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD22 / 0, 255, 0,  37, 37,      0, -180000, 128,   90000,            &
+          0,   2500, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD23 / 0, 255, 0,  37, 37, -90000,       0, 128,       0,            &
+     180000,   2500, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD24 / 0, 255, 0,  37, 37, -90000, -180000, 128,       0,            &
+          0,   2500, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD25 / 0, 255, 0,  72, 19,      0,       0, 128,   90000,            &
+     355000,   5000, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD26 / 0, 255, 0,  72, 19, -90000,       0, 128,       0,            &
+     355000,   5000, 5000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD27 / 0, 255, 5,  65, 65, -20286, -125000,   8,  -80000,            &
+     381000, 381000, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD28 / 0, 255, 5,  65, 65,  20286,  145000,   8,  -80000,            &
+     381000, 381000,128, 64, 0, 0, 0, 0, 0/
+   DATA  GRD29 / 0, 255, 0, 145, 37,      0,       0, 128,   90000,            &
+     360000,   2500, 2500, 64, 0, 0, 0, 0, 0/
+   DATA  GRD30 / 0, 255, 0, 145, 37,      0,  -90000, 128,       0,            &
+     360000,   2500, 2500, 64, 0, 0, 0, 0, 0/
+   DATA  GRD33 / 0, 255, 0, 181, 46,      0,       0, 128,   90000,            &
+     360000,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD34 / 0, 255, 0, 181, 46, -90000,       0, 128,       0,            &
+     360000,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD37 / 0,  33, 0,65535,73,      0,  -30000, 128,   90000,            &
+      60000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+    73, 73, 73, 73, 73, 73, 73, 73, 72, 72, 72, 71, 71, 71, 70,                &
+    70, 69, 69, 68, 67, 67, 66, 65, 65, 64, 63, 62, 61, 60, 60,                &
+    59, 58, 57, 56, 55, 54, 52, 51, 50, 49, 48, 47, 45, 44, 43,                &
+    42, 40, 39, 38, 36, 35, 33, 32, 30, 29, 28, 26, 25, 23, 22,                &
+    20, 19, 17, 16, 14, 12, 11,  9,  8,  6,  5,  3,  2/
+   DATA  GRD38 / 0,  33, 0,65535,73,      0,   60000, 128,   90000,            &
+     150000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+    73, 73, 73, 73, 73, 73, 73, 73, 72, 72, 72, 71, 71, 71, 70,                &
+    70, 69, 69, 68, 67, 67, 66, 65, 65, 64, 63, 62, 61, 60, 60,                &
+    59, 58, 57, 56, 55, 54, 52, 51, 50, 49, 48, 47, 45, 44, 43,                &
+    42, 40, 39, 38, 36, 35, 33, 32, 30, 29, 28, 26, 25, 23, 22,                &
+    20, 19, 17, 16, 14, 12, 11,  9,  8,  6,  5,  3,  2/
+   DATA  GRD39 / 0,  33, 0,65535,73,      0,  150000, 128,   90000,            &
+    -120000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+    73, 73, 73, 73, 73, 73, 73, 73, 72, 72, 72, 71, 71, 71, 70,                &
+    70, 69, 69, 68, 67, 67, 66, 65, 65, 64, 63, 62, 61, 60, 60,                &
+    59, 58, 57, 56, 55, 54, 52, 51, 50, 49, 48, 47, 45, 44, 43,                &
+    42, 40, 39, 38, 36, 35, 33, 32, 30, 29, 28, 26, 25, 23, 22,                &
+    20, 19, 17, 16, 14, 12, 11,  9,  8,  6,  5,  3,  2/
+   DATA  GRD40 / 0,  33, 0,65535,73,      0, -120000, 128,   90000,            &
+     -30000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+    73, 73, 73, 73, 73, 73, 73, 73, 72, 72, 72, 71, 71, 71, 70,                &
+    70, 69, 69, 68, 67, 67, 66, 65, 65, 64, 63, 62, 61, 60, 60,                &
+    59, 58, 57, 56, 55, 54, 52, 51, 50, 49, 48, 47, 45, 44, 43,                &
+    42, 40, 39, 38, 36, 35, 33, 32, 30, 29, 28, 26, 25, 23, 22,                &
+    20, 19, 17, 16, 14, 12, 11,  9,  8,  6,  5,  3,  2/
+   DATA  GRD41 / 0,  33, 0,65535,73, -90000,  -30000, 128,       0,            &
+      60000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+     2,  3,  5,  6,  8,  9, 11, 12, 14, 16, 17, 19, 20, 22, 23,                &
+    25, 26, 28, 29, 30, 32, 33, 35, 36, 38, 39, 40, 42, 43, 44,                &
+    45, 47, 48, 49, 50, 51, 52, 54, 55, 56, 57, 58, 59, 60, 60,                &
+    61, 62, 63, 64, 65, 65, 66, 67, 67, 68, 69, 69, 70, 70, 71,                &
+    71, 71, 72, 72, 72, 73, 73, 73, 73, 73, 73, 73, 73/
+   DATA  GRD42 / 0,  33, 0,65535,73, -90000,   60000, 128,       0,            &
+     150000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+     2,  3,  5,  6,  8,  9, 11, 12, 14, 16, 17, 19, 20, 22, 23,                &
+    25, 26, 28, 29, 30, 32, 33, 35, 36, 38, 39, 40, 42, 43, 44,                &
+    45, 47, 48, 49, 50, 51, 52, 54, 55, 56, 57, 58, 59, 60, 60,                &
+    61, 62, 63, 64, 65, 65, 66, 67, 67, 68, 69, 69, 70, 70, 71,                &
+    71, 71, 72, 72, 72, 73, 73, 73, 73, 73, 73, 73, 73/
+   DATA  GRD43 / 0,  33, 0,65535,73, -90000,  150000, 128,       0,            &
+    -120000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+     2,  3,  5,  6,  8,  9, 11, 12, 14, 16, 17, 19, 20, 22, 23,                &
+    25, 26, 28, 29, 30, 32, 33, 35, 36, 38, 39, 40, 42, 43, 44,                &
+    45, 47, 48, 49, 50, 51, 52, 54, 55, 56, 57, 58, 59, 60, 60,                &
+    61, 62, 63, 64, 65, 65, 66, 67, 67, 68, 69, 69, 70, 70, 71,                &
+    71, 71, 72, 72, 72, 73, 73, 73, 73, 73, 73, 73, 73/
+   DATA  GRD44 / 0,  33, 0,65535,73, -90000, -120000, 128,       0,            &
+     -30000,  1250,65535, 64, 0, 0, 0, 0, 0,                                   &
+     2,  3,  5,  6,  8,  9, 11, 12, 14, 16, 17, 19, 20, 22, 23,                &
+    25, 26, 28, 29, 30, 32, 33, 35, 36, 38, 39, 40, 42, 43, 44,                &
+    45, 47, 48, 49, 50, 51, 52, 54, 55, 56, 57, 58, 59, 60, 60,                &
+    61, 62, 63, 64, 65, 65, 66, 67, 67, 68, 69, 69, 70, 70, 71,                &
+    71, 71, 72, 72, 72, 73, 73, 73, 73, 73, 73, 73, 73/
+   DATA  GRD55 / 0, 255, 5,  87, 81, -10947, -154289,   8, -105000,            &
+     254000, 254000, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD56 / 0, 255, 5,  87, 71,   7647, -133443,   8, -105000,            &
+     127000, 127000, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD61 / 0, 255, 0,  91, 46,      0,       0, 128,   90000,            &
+     180000,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD62 / 0, 255, 0,  91, 46,      0, -180000, 128,   90000,            &
+          0,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD63 / 0, 255, 0,  91, 46,      0,  -90000, 128,       0,            &
+     180000,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD64 / 0, 255, 0,  91, 46, -90000, -180000, 128,       0,            &
+          0,   2000, 2000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD85 / 0, 255, 0, 360, 90,    500,     500, 128,   89500,            &
+     359500,   1000, 1000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD86 / 0, 255, 0, 360, 90, -89500,     500, 128,    -500,            &
+     359500,   1000, 1000, 64, 0, 0, 0, 0, 0/
+   DATA  GRD87 / 0, 255, 5,  81, 62,  22876, -120491,   8, -105000,            &
+      68153,  68153, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD98 / 0, 255, 4, 192, 94,  88542,       0, 128,  -88542,            &
+       -938,   47,1875,  0, 0, 0, 0, 0, 0/
+   DATA  GRD100/ 0, 255, 5,  83, 83,  17108, -129296,   8, -105000,            &
+      91452,  91452, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD101/ 0, 255, 5, 113, 91,  10528, -137146,   8, -105000,            &
+      91452,  91452, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD103/ 0, 255, 5,  65, 56,  22405, -121352,   8, -105000,            &
+      91452,  91452, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD104/ 0, 255, 5, 147,110,   -268, -139475,   8, -105000,            &
+      90755,  90755, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD105/ 0, 255, 5,  83, 83,  17529, -129296,   8, -105000,            &
+      90755,  90755, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD106/ 0, 255, 5, 165,117,  17533, -129296,   8, -105000,            &
+      45377,  45377, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD107/ 0, 255, 5, 120, 92,  23438, -120168,   8, -105000,            &
+      45377,  45377, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD126/ 0, 255, 4, 384,190,  89277,       0, 128,  -89277,            &
+       -938,    95,938,  0, 0, 0, 0, 0, 0/
+   DATA  GRD201/ 0, 255, 5,  65, 65, -20286, -150000,   8, -105000,            &
+     381000, 381000, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD202/ 0, 255, 5,  65, 43,   7838, -141028,   8, -105000,            &
+     190500, 190500, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD203/ 0, 255, 5,  45, 39,  19132, -185837,   8, -150000,            &
+     190500, 190500, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD204/ 0, 255, 1,  93, 68, -25000,  110000, 128,   60644,            &
+    -109129, 160000, 160000, 20000, 64, 0, 0, 0, 0/
+   DATA  GRD205/ 0, 255, 5,  45, 39,    616,  -84904,   8,  -60000,            &
+     190500, 190500, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD206/ 0, 255, 3,  51, 41,  22289, -117991,   8, - 95000,            &
+      81271,  81271, 0, 64, 0, 25000, 25000, 0, 0/
+   DATA  GRD207/ 0, 255, 5,  49, 35,  42085, -175641,   8, -150000,            &
+      95250,  95250, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD208/ 0, 255, 1,  29, 27,   9343, -167315, 128,   28092,            &
+    -145878,  80000, 80000, 20000, 64, 0, 0, 0, 0/
+   DATA  GRD209/ 0, 255, 3, 101, 81,  22289, -117991,   8, - 95000,            &
+      40635,  40635, 0, 64, 0, 25000, 25000, 0, 0/
+   DATA  GRD210/ 0, 255, 1,  25, 25,   9000,  -77000, 128,   26422,            &
+     -58625,  80000, 80000, 20000, 64, 0, 0, 0, 0/
+   DATA  GRD211/ 0, 255, 3,  93, 65,  12190, -133459,   8, - 95000,            &
+      81271,  81271, 0, 64, 0, 25000, 25000, 0, 0/
+   DATA  GRD212/ 0, 255, 3, 185,129,  12190, -133459,   8, - 95000,            &
+      40635,  40635, 0, 64, 0, 25000, 25000, 0, 0/
+   DATA  GRD213/ 0, 255, 5, 129, 85,   7838, -141028,   8, -105000,            &
+      95250,  95250, 0, 64, 0, 0, 0, 0, 0/
+   DATA  GRD214/ 0, 255, 5,  97, 69,  42085, -175641,   8, -150000,            &
+      47625,  47625, 0, 64, 0, 0, 0, 0, 0/
+!
+   IERR = 0
+!
+     DO 1 I = 1,18
+       IGDS(I) = 0
+ 1      CONTINUE
+!
+   IF (IGRID.GE.37.AND.IGRID.LE.44) THEN
+     DO 2 I = 19,91
+       IGDS(I) = 0
+ 2      CONTINUE
+   END IF
+!
+   IF (IGRID.EQ.1) THEN
+     DO 3 I = 1,14
+       IGDS(I) = GRD1(I)
+  3     CONTINUE
+!
+   ELSE IF (IGRID.EQ.2) THEN
+     DO 4 I = 1,14
+       IGDS(I) = GRD2(I)
+ 4      CONTINUE
+!
+   ELSE IF (IGRID.EQ.3) THEN
+     DO 5 I = 1,14
+       IGDS(I) = GRD3(I)
+ 5      CONTINUE
+!
+   ELSE IF (IGRID.EQ.5) THEN
+     DO 10 I = 1,14
+       IGDS(I) = GRD5(I)
+ 10     CONTINUE
+!
+   ELSE IF (IGRID.EQ.6) THEN
+     DO 20 I = 1,14
+       IGDS(I) = GRD6(I)
+ 20     CONTINUE
+!
+   ELSE IF (IGRID.EQ.21) THEN
+     DO 30 I = 1,14
+       IGDS(I) = GRD21(I)
+ 30     CONTINUE
+!
+   ELSE IF (IGRID.EQ.22) THEN
+     DO 40 I = 1,14
+       IGDS(I) = GRD22(I)
+ 40     CONTINUE
+!
+   ELSE IF (IGRID.EQ.23) THEN
+     DO 50 I = 1,14
+       IGDS(I) = GRD23(I)
+ 50     CONTINUE
+!
+   ELSE IF (IGRID.EQ.24) THEN
+     DO 60 I = 1,14
+       IGDS(I) = GRD24(I)
+ 60     CONTINUE
+!
+   ELSE IF (IGRID.EQ.25) THEN
+     DO 70 I = 1,14
+       IGDS(I) = GRD25(I)
+ 70     CONTINUE
+!
+   ELSE IF (IGRID.EQ.26) THEN
+     DO 80 I = 1,14
+       IGDS(I) = GRD26(I)
+ 80     CONTINUE
+!
+   ELSE IF (IGRID.EQ.27) THEN
+     DO 90 I = 1,14
+       IGDS(I) = GRD27(I)
+ 90     CONTINUE
+!
+   ELSE IF (IGRID.EQ.28) THEN
+     DO 100 I = 1,14
+       IGDS(I) = GRD28(I)
+ 100    CONTINUE
+!
+   ELSE IF (IGRID.EQ.29) THEN
+     DO 110 I = 1,14
+       IGDS(I) = GRD29(I)
+ 110    CONTINUE
+!
+   ELSE IF (IGRID.EQ.30) THEN
+     DO 120 I = 1,14
+       IGDS(I) = GRD30(I)
+ 120    CONTINUE
+!
+   ELSE IF (IGRID.EQ.33) THEN
+     DO 130 I = 1,14
+       IGDS(I) = GRD33(I)
+ 130     CONTINUE
+!
+   ELSE IF (IGRID.EQ.34) THEN
+     DO 140 I = 1,14
+       IGDS(I) = GRD34(I)
+ 140    CONTINUE
+!
+   ELSE IF (IGRID.EQ.37) THEN
+     DO 141 I = 1,91
+       IGDS(I) = GRD37(I)
+ 141    CONTINUE
+!
+   ELSE IF (IGRID.EQ.38) THEN
+     DO 142 I = 1,91
+       IGDS(I) = GRD38(I)
+ 142    CONTINUE
+!
+   ELSE IF (IGRID.EQ.39) THEN
+     DO 143 I = 1,91
+       IGDS(I) = GRD39(I)
+ 143    CONTINUE
+!
+   ELSE IF (IGRID.EQ.40) THEN
+     DO 144 I = 1,91
+       IGDS(I) = GRD40(I)
+ 144    CONTINUE
+!
+   ELSE IF (IGRID.EQ.41) THEN
+     DO 145 I = 1,91
+       IGDS(I) = GRD41(I)
+ 145    CONTINUE
+!
+   ELSE IF (IGRID.EQ.42) THEN
+     DO 146 I = 1,91
+       IGDS(I) = GRD42(I)
+ 146    CONTINUE
+!
+   ELSE IF (IGRID.EQ.43) THEN
+     DO 147 I = 1,91
+       IGDS(I) = GRD43(I)
+ 147    CONTINUE
+!
+   ELSE IF (IGRID.EQ.44) THEN
+     DO 148 I = 1,91
+       IGDS(I) = GRD44(I)
+ 148    CONTINUE
+!
+!     ELSE IF (IGRID.EQ.50) THEN
+!       DO 150 I = 1,14
+!         IGDS(I) = GRD50(I)
+!150    CONTINUE
+!
+   ELSE IF (IGRID.EQ.55) THEN
+     DO 152 I = 1,14
+       IGDS(I) = GRD55(I)
+ 152    CONTINUE
+!
+   ELSE IF (IGRID.EQ.56) THEN
+     DO 154 I = 1,14
+       IGDS(I) = GRD56(I)
+ 154    CONTINUE
+!
+   ELSE IF (IGRID.EQ.61) THEN
+     DO 160 I = 1,14
+       IGDS(I) = GRD61(I)
+ 160    CONTINUE
+!
+   ELSE IF (IGRID.EQ.62) THEN
+     DO 170 I = 1,14
+       IGDS(I) = GRD62(I)
+ 170    CONTINUE
+!
+   ELSE IF (IGRID.EQ.63) THEN
+     DO 180 I = 1,14
+       IGDS(I) = GRD63(I)
+ 180    CONTINUE
+!
+   ELSE IF (IGRID.EQ.64) THEN
+     DO 190 I = 1,14
+       IGDS(I) = GRD64(I)
+ 190    CONTINUE
+!
+   ELSE IF (IGRID.EQ.85) THEN
+     DO 192 I = 1,14
+       IGDS(I) = GRD85(I)
+ 192    CONTINUE
+!
+   ELSE IF (IGRID.EQ.86) THEN
+     DO 194 I = 1,14
+       IGDS(I) = GRD86(I)
+ 194    CONTINUE
+!
+   ELSE IF (IGRID.EQ.87) THEN
+     DO 195 I = 1,14
+       IGDS(I) = GRD87(I)
+ 195    CONTINUE
+!
+   ELSE IF (IGRID.EQ.98) THEN
+     DO 196 I = 1,14
+       IGDS(I) = GRD98(I)
+ 196    CONTINUE
+!
+   ELSE IF (IGRID.EQ.100) THEN
+     DO 200 I = 1,14
+       IGDS(I) = GRD100(I)
+ 200    CONTINUE
+!
+   ELSE IF (IGRID.EQ.101) THEN
+     DO 210 I = 1,14
+       IGDS(I) = GRD101(I)
+ 210    CONTINUE
+!
+   ELSE IF (IGRID.EQ.103) THEN
+     DO 220 I = 1,14
+       IGDS(I) = GRD103(I)
+ 220   CONTINUE
+!
+   ELSE IF (IGRID.EQ.104) THEN
+     DO 230 I = 1,14
+       IGDS(I) = GRD104(I)
+ 230    CONTINUE
+!
+   ELSE IF (IGRID.EQ.105) THEN
+     DO 240 I = 1,14
+       IGDS(I) = GRD105(I)
+ 240    CONTINUE
+!
+   ELSE IF (IGRID.EQ.106) THEN
+     DO 242 I = 1,14
+       IGDS(I) = GRD106(I)
+ 242    CONTINUE
+!
+   ELSE IF (IGRID.EQ.107) THEN
+     DO 244 I = 1,14
+       IGDS(I) = GRD107(I)
+ 244    CONTINUE
+!
+   ELSE IF (IGRID.EQ.126) THEN
+     DO 245 I = 1,14
+       IGDS(I) = GRD126(I)
+ 245    CONTINUE
+!
+   ELSE IF (IGRID.EQ.201) THEN
+     DO 250 I = 1,14
+       IGDS(I) = GRD201(I)
+ 250    CONTINUE
+!
+   ELSE IF (IGRID.EQ.202) THEN
+     DO 260 I = 1,14
+       IGDS(I) = GRD202(I)
+ 260    CONTINUE
+!
+   ELSE IF (IGRID.EQ.203) THEN
+     DO 270 I = 1,14
+       IGDS(I) = GRD203(I)
+ 270    CONTINUE
+!
+   ELSE IF (IGRID.EQ.204) THEN
+     DO 280 I = 1,14
+       IGDS(I) = GRD204(I)
+ 280    CONTINUE
+!
+   ELSE IF (IGRID.EQ.205) THEN
+     DO 290 I = 1,14
+       IGDS(I) = GRD205(I)
+ 290    CONTINUE
+!
+   ELSE IF (IGRID.EQ.206) THEN
+     DO 300 I = 1,18
+       IGDS(I) = GRD206(I)
+ 300    CONTINUE
+!
+   ELSE IF (IGRID.EQ.207) THEN
+     DO 310 I = 1,14
+       IGDS(I) = GRD207(I)
+ 310    CONTINUE
+!
+   ELSE IF (IGRID.EQ.208) THEN
+     DO 320 I = 1,14
+       IGDS(I) = GRD208(I)
+ 320    CONTINUE
+!
+   ELSE IF (IGRID.EQ.209) THEN
+     DO 330 I = 1,18
+       IGDS(I) = GRD209(I)
+ 330    CONTINUE
+!
+   ELSE IF (IGRID.EQ.210) THEN
+     DO 340 I = 1,14
+       IGDS(I) = GRD210(I)
+ 340    CONTINUE
+!
+   ELSE IF (IGRID.EQ.211) THEN
+     DO 350 I = 1,18
+       IGDS(I) = GRD211(I)
+ 350    CONTINUE
+!
+   ELSE IF (IGRID.EQ.212) THEN
+     DO 360 I = 1,18
+       IGDS(I) = GRD212(I)
+ 360    CONTINUE
+!
+   ELSE IF (IGRID.EQ.213) THEN
+     DO 370 I = 1,14
+       IGDS(I) = GRD213(I)
+ 370    CONTINUE
+!
+   ELSE IF (IGRID.EQ.214) THEN
+     DO 380 I = 1,14
+       IGDS(I) = GRD214(I)
+ 380    CONTINUE
+!
+   ELSE
+     IERR = 1
+   ENDIF
+!
+   RETURN
+   END
+   SUBROUTINE W3FI72(ITYPE,FLD,IFLD,IBITL,IPFLAG,ID,PDS,                       &
+                     IGFLAG,IGRID,IGDS,ICOMP,                                  &
+                     IBFLAG,IBMAP,IBLEN,                                       &
+                     IBDSFL,                                                   &
+                     NPTS,KBUF,ITOT,JERR)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI72        MAKE A COMPLETE GRIB MESSAGE
+!   PRGMMR: CAVANAUGH        ORG: NMC421      DATE:93-09-22
+!
+! ABSTRACT: MAKES A COMPLETE GRIB MESSAGE FROM A USER SUPPLIED
+!   ARRAY OF FLOATING POINT OR INTEGER DATA.  THE USER HAS THE
+!   OPTION OF SUPPLYING THE PDS OR AN INTEGER ARRAY THAT WILL BE
+!   USED TO CREATE A PDS (WITH W3FI68).  THE USER MUST ALSO
+!   SUPPLY OTHER NECESSARY INFO; SEE USAGE SECTION BELOW.
+!
+! PROGRAM HISTORY LOG:
+!   91-05-08  R.E.JONES
+!   92-07-01  M. FARLEY    ADDED GDS AND BMS LOGIC.  PLACED EXISTING
+!                          LOGIC FOR BDS IN A ROUTINE.
+!   92-10-02  R.E.JONES    ADD ERROR EXIT FOR W3FI73
+!   93-04-30  R.E.JONES    REPLACE DO LOOPS TO MOVE CHARACTER DATA
+!                          WITH XMOVEX, USE XSTORE TO ZERO CHARACTER
+!                          ARRAY. MAKE CHANGE SO FLAT FIELD WILL PACK.
+!   93-08-06  CAVANAUGH    MODIFIED CALL TO W3FI75
+!   93-10-01  R.E.JONES    INCREASE SIZE OF GDS ARAAY FOR GRIB TYPES
+!                          37-44
+!   93-10-25  R.E.JONES    IF D SCALING NOT EQUAL 0, FLD IS CHANGED
+!                          BEFORE CALL TO W3FI75, CHANGE BACK TO
+!                          ORIGINAL VALUES AFTER W3FI75.
+!
+! USAGE:  CALL W3FI72(ITYPE,FLD,IFLD,IBITL,
+!        &            IPFLAG,ID,PDS,
+!        &            IGFLAG,IGRID,IGDS,ICOMP,
+!        &            IBFLAG,IBMAP,IBLEN,IBDSFL,
+!        &            NPTS,KBUF,ITOT,JERR)
+!
+!   INPUT ARGUMENT LIST:
+!     ITYPE    - 0 = FLOATING POINT DATA SUPPLIED IN ARRAY 'FLD'
+!                1 = INTEGER DATA SUPPLIED IN ARRAY 'IFLD'
+!     FLD      - REAL ARRAY OF DATA (AT PROPER GRIDPOINTS) TO BE
+!                CONVERTED TO GRIB FORMAT IF ITYPE=0.
+!                SEE REMARKS #1 & 2.
+!     IFLD     - INTEGER ARRAY OF DATA (AT PROPER GRIDPOINTS) TO BE
+!                CONVERTED TO GRIB FORMAT IF ITYPE=1.
+!                SEE REMARKS #1 & 2.
+!     IBITL    - 0 = COMPUTER COMPUTES LENGTH FOR PACKING DATA FROM
+!                    POWER OF 2 (NUMBER OF BITS) BEST FIT OF DATA
+!                    USING 'VARIABLE' BIT PACKER W3FI58.
+!                8, 12, ETC. COMPUTER RESCALES DATA TO FIT INTO THAT
+!                    'FIXED' NUMBER OF BITS USING W3FI59.
+!                SEE REMARKS #3.
+!
+!     IPFLAG   - 0 = MAKE PDS FROM USER SUPPLIED ARRAY (ID)
+!                1 = USER SUPPLYING PDS
+!     ID       - INTEGER ARRAY OF  VALUES THAT W3FI68 WILL USE
+!                TO MAKE AN EDITION 1 PDS IF IPFLAG=0.  (SEE THE
+!                DOCBLOCK FOR W3FI68 FOR LAYOUT OF ARRAY)
+!     PDS      - CHARACTER ARRAY OF  VALUES (VALID PDS SUPPLIED
+!                BY USER) IF IPFLAG=1.
+!
+!     IGFLAG   - 0 = MAKE GDS BASED ON 'IGRID' VALUE.
+!                1 = MAKE GDS FROM USER SUPPLIED INFO IN 'IGDS'
+!                    AND 'IGRID' VALUE.
+!                SEE REMARKS #4.
+!     IGRID    - #   = GRID IDENTIFICATION (TABLE B)
+!                255 = IF USER DEFINED GRID; IGDS MUST BE SUPPLIED
+!                      AND IGFLAG MUST =1.
+!     IGDS     - INTEGER ARRAY CONTAINING USER GDS INFO (SAME
+!                FORMAT AS SUPPLIED BY W3FI71 - SEE DOCKBLOCK FOR
+!                LAYOUT) IF IGFLAG=1.
+!     ICOMP    - RESOLUTION AND COMPONENT FLAG FOR BIT 5 OF GDS(17)
+!                0 = EARTH ORIENTED WINDS
+!                1 = GRID ORIENTED WINDS
+!
+!     IBFLAG   - 0 = MAKE BIT MAP FROM USER SUPPLIED DATA
+!                # = BIT MAP PREDEFINED BY CENTER
+!                SEE REMARKS #5.
+!     IBMAP    - INTEGER ARRAY CONTAINING BIT MAP
+!     IBLEN    - LENGTH OF BIT MAP WILL BE USED TO VERIFY LENGTH
+!                OF FIELD (ERROR IF IT DOESN'T MATCH).
+!
+!     IBDSFL   - INTEGER ARRAY CONTAINING TABLE 11 FLAG INFO
+!                BDS OCTET 4:
+!                (1) 0 = GRID POINT DATA
+!                    1 = SPHERICAL HARMONIC COEFFICIENTS
+!                (2) 0 = SIMPLE PACKING
+!                    1 = SECOND ORDER PACKING
+!                (3) ... SAME VALUE AS 'ITYPE'
+!                    0 = ORIGINAL DATA WERE FLOATING POINT VALUES
+!                    1 = ORIGINAL DATA WERE INTEGER VALUES
+!                (4) 0 = NO ADDITIONAL FLAGS AT OCTET 14
+!                    1 = OCTET 14 CONTAINS FLAG BITS 5-12
+!       *** ***  BYTES 5-9 NOT IMPLENTED YET... SET TO '0' FOR NOW
+!                (5) 0 = RESERVED - ALWAYS SET TO 0
+!                (6) 0 = SINGLE DATUM AT EACH GRID POINT
+!                    1 = MATRIX OF VALUES AT EACH GRID POINT
+!                (7) 0 = NO SECONDARY BIT MAPS
+!                    1 = SECONDARY BIT MAPS PRESENT
+!                (8) 0 = SECOND ORDER VALUES HAVE CONSTANT WIDTH
+!                    1 = SECOND ORDER VALUES HAVE DIFFERENT WIDTHS
+!                (9) 0 = LIST ENCODED DATA
+!                    1 = RUN LENGTH ENCODED
+!
+!   OUTPUT ARGUMENT LIST:
+!     NPTS     - NUMBER OF GRIDPOINTS IN ARRAY FLD OR IFLD
+!     KBUF     - ENTIRE GRIB MESSAGE ('GRIB' TO '7777')
+!                EQUIVALENCE TO INTEGER ARRAY TO MAKE SURE IT
+!                IS ON WORD BOUNARY.
+!     ITOT     - TOTAL LENGTH OF GRIB MESSAGE IN BYTES
+!     JERR     - = 0, COMPLETED MAKING GRIB FIELD WITHOUT ERROR
+!                  1, IPFLAG NOT 0 OR 1
+!                  2, IGFLAG NOT 0 OR 1
+!                  3, ERROR CONVERTING IEEE F.P. NUMBER TO IBM370 F.P.
+!                  4, W3FI71 ERROR/IGRID NOT DEFINED
+!                  5, W3FK74 ERROR/GRID REPRESENTATION TYPE NOT VALID
+!                  6, GRID TOO LARGE FOR PACKER DIMENSION ARRAYS
+!                     SEE AUTOMATION DIVISION FOR REVISION!
+!                  7, LENGTH OF BIT MAP NOT EQUAL TO SIZE OF FLD/IFLD
+!                  8, W3FI73 ERROR, ALL VALUES IN IBMAP ARE ZERO
+!
+!   OUTPUT FILES:
+!     FT06F001 - STANDARD FORTRAN OUTPUT PRINT FILE
+!
+!   SUBPROGRAMS CALLED:
+!     LIBRARY:
+!       W3LIB    - W3FI58, W3FI59, W3FI68, W3FI71, W3FI73, W3FI74
+!                  W3FI75, W3FI76, W3FI01
+!
+! REMARKS:
+!   1)  IF BIT MAP TO BE INCLUDED IN MESSAGE, NULL DATA SHOULD
+!       BE INCLUDED IN FLD OR IFLD.  THIS ROUTINE WILL TAKE CARE
+!       OF 'DISCARDING' ANY NULL DATA BASED ON THE BIT MAP.
+!   2)  UNITS MUST BE THOSE IN GRIB DOCUMENTATION:  NMC O.N. 388
+!       OR WMO PUBLICATION 306.
+!   3)  IN EITHER CASE, INPUT NUMBERS WILL BE MULTIPLIED BY
+!       '10 TO THE NTH' POWER FOUND IN ID(25) OR PDS(27-28),
+!       THE D-SCALING FACTOR, PRIOR TO BINARY PACKING.
+!   4)  ALL NMC PRODUCED GRIB FIELDS WILL HAVE A GRID DEFINITION
+!       SECTION INCLUDED IN THE GRIB MESSAGE.  ID(6) WILL BE
+!       SET TO '1'.
+!       - GDS WILL BE BUILT BASED ON GRID NUMBER (IGRID), UNLESS
+!         IGFLAG=1 (USER SUPPLYING IGDS).  USER MUST STILL SUPPLY
+!         IGRID EVEN IF IGDS PROVIDED.
+!   5)  IF BIT MAP USED THEN ID(7) OR PDS(8) MUST INDICATE THE
+!       PRESENCE OF A BIT MAP.
+!   6)  ARRAY KBUF SHOULD BE EQUIVALENCED TO AN INTEGER VALUE OR
+!       ARRRAY TO MAKE SURE IT IS ON A WORD BOUNDARY.
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN
+!   MACHINE:  CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+   PARAMETER       (MXSIZE=2600000)
+!     ALLOW UP TO 24 BITS PER POINT
+   PARAMETER       (MXSIZ3=MXSIZE*3)
+   PARAMETER       (MXSIZB=MXSIZE/8+6)
+!     FOR 64 BIT CRAY
+!     PARAMETER       (MXSIZI=MXSIZ3/8)
+!     FOR 32 BIT WORKSTATIONS AND HDS
+   PARAMETER       (MXSIZI=MXSIZ3/4)
+!
+   REAL*8          FLD(*)
+!
+   INTEGER         IBDSFL(*)
+   INTEGER         IBMAP(*)
+   INTEGER         ID(*)
+   INTEGER         IFLD(*)
+   INTEGER         IGDS(*)
+   INTEGER         IPFLD(MXSIZI)
+   INTEGER         IB(4)
+!
+   CHARACTER * 1   BDS11(11)
+   CHARACTER * 1   KBUF(*)
+   CHARACTER * 1   PDS(*)
+   CHARACTER * 1   GDS(500)
+   CHARACTER * 1   BMS(MXSIZB)
+   CHARACTER * 1   PFLD(MXSIZ3)
+   CHARACTER * 1   SEVEN
+   CHARACTER * 1   ZERO
+!
+   SAVE
+!
+   EQUIVALENCE     (IPFLD(1),PFLD(1))
+   EQUIVALENCE     (BDS11(1),IDUMMY)
+!
+!   ASCII REP OF  /'G', 'R', 'I', 'B'/
+!
+   DATA  IB    / 71,  82,  73,  66/
+!
+   IER    = 0
+   IBERR  = 0
+   JERR   = 0
+   IGRIBL = 8
+   IPDSL  = 0
+   LENGDS = 0
+   LENBMS = 0
+   LENBDS = 0
+   ITOSS  = 0
+!
+!$           1.0   PRODUCT DEFINITION SECTION(PDS).
+!
+!   SET ID(6) TO 1 ...OR... MODIFY PDS(8) ...
+!      REGARDLESS OF USER SPECIFICATION...
+!   NMC GRIB FIELDS WILL ALWAYS HAVE A GDS
+!
+!-DEBUG
+   IF (IPFLAG .EQ.0) THEN
+     ID(6) = 1
+!       PRINT *,' W3FI72 - CHECK POINT IPFLAG = 0'
+     CALL W3FI68(ID,PDS)
+   ELSE IF (IPFLAG .EQ. 1) THEN
+     IF (IAND(ICHAR(PDS(8)),64) .EQ. 64) THEN
+!         BOTH GDS AND BMS
+       PDS(8) = CHAR(192)
+     ELSE IF (ICHAR(PDS(8)) .EQ. 0) THEN
+!         GDS ONLY
+       PDS(8) = CHAR(128)
+     END IF
+     CONTINUE
+   ELSE
+     PRINT *,' W3FI72 ERROR, IPFLAG IS NOT 0 OR 1 IPFLAG = ',IPFLAG
+     JERR = 1
+     GO TO 900
+   END IF
+!
+!     GET LENGTH OF PDS
+!
+   IPDSL = ICHAR(PDS(1)) * 65536 + ICHAR(PDS(2)) * 256 +                       &
+           ICHAR(PDS(3))
+!
+!$           2.0   GRID DEFINITION SECTION (GDS).
+!
+!     IF IGFLAG=1 THEN USER IS SUPPLYING THE IGDS INFORMATION
+!
+   IF (IGFLAG .EQ. 0) THEN
+     CALL W3FI71(IGRID,IGDS,IGERR)
+     IF (IGERR .EQ. 1) THEN
+       PRINT *,' W3FI71 ERROR, GRID TYPE NOT DEFINED...',IGRID
+       JERR = 4
+       GO TO 900
+     END IF
+   END IF
+   IF (IGFLAG .EQ. 0  .OR.  IGFLAG .EQ.1) THEN
+     CALL W3FI74(IGDS,ICOMP,GDS,LENGDS,NPTS,IGERR)
+     IF (IGERR .EQ. 1) THEN
+       PRINT *,' W3FI74 ERROR, GRID REP TYPE NOT VALID...',IGDS(3)
+       JERR = 5
+       GO TO 900
+     ELSE
+     END IF
+     IF (NPTS .GT. MXSIZE) THEN
+       PRINT *,' W3FI72 ERROR, GRID TOO LARGE FOR PACKER ARRAY',               &
+               ' DIMENSIONS'
+       JERR = 6
+       GO TO 900
+     END IF
+   ELSE
+     PRINT *,' W3FI72 ERROR, IGFLAG IS NOT 0 OR 1 IGFLAG = ',IGFLAG
+     JERR = 2
+     GO TO 900
+   END IF
+!
+!$           3.0   BIT MAP SECTION (BMS).
+!
+!     SET ITOSS=1 IF BITMAP BEING USED.  W3FI75 WILL TOSS DATA
+!     PRIOR TO PACKING.  LATER CODING WILL BE NEEDED WHEN THE
+!     'PREDEFINED' GRIDS ARE FINALLY 'DEFINED'.
+!
+!     IF (ID(7) .EQ.1 .OR. ICHAR(PDS(8)) .EQ. 64 .OR.
+     IF (ICHAR(PDS(8)) .EQ. 64 .OR.                                            &
+         ICHAR(PDS(8)) .EQ. 192.OR.                                            &
+         ICHAR(PDS(8)) .EQ.-64 .OR.                                            &
+         ICHAR(PDS(8)) .EQ.-192)   THEN
+     ITOSS = 1
+     IF (IBFLAG .EQ. 0) THEN
+       IF (IBLEN .NE. NPTS) THEN
+         PRINT *,' W3FI72 ERROR, IBLEN .NE. NPTS = ',IBLEN,NPTS
+         JERR = 7
+         GO TO 900
+       END IF
+       CALL W3FI73(IBFLAG,IBMAP,IBLEN,BMS,LENBMS,IER)
+       IF (IER .NE. 0) THEN
+         PRINT *,' W3FI73 ERROR, IBMAP VALUES ARE ALL ZERO'
+         JERR = 8
+         GO TO 900
+       END IF
+     ELSE
+       PRINT *,'   BIT MAP PREDEFINED BY CENTER, IBFLAG = ',IBFLAG
+     END IF
+   END IF
+!
+!$           4.0   BINARY DATA SECTION (BDS).
+!
+!$           4.1   SCALE THE DATA WITH D-SCALE FROM PDS(27-28)
+!
+   JSCALE = ICHAR(PDS(27)) * 256 + ICHAR(PDS(28))
+   IF (IAND(JSCALE,32768).NE.0) THEN
+     JSCALE = - IAND(JSCALE,32767)
+   END IF
+   SCALE  = 10.0 ** JSCALE
+   IF (ITYPE .EQ. 0) THEN
+     DO 410 I = 1,NPTS
+       FLD(I) = FLD(I) * SCALE
+  410   CONTINUE
+   ELSE
+     DO 411 I = 1,NPTS
+       IFLD(I) = NINT(FLOAT(IFLD(I)) * SCALE)
+  411   CONTINUE
+   END IF
+!
+!$           4.2   CALL W3FI75 TO PACK DATA AND MAKE BDS.
+!
+   CALL W3FI75(IBITL,ITYPE,ITOSS,FLD,IFLD,IBMAP,IBDSFL,                        &
+            NPTS,BDS11,IPFLD,PFLD,LEN,LENBDS,IBERR,PDS)
+     IF (IBERR .EQ. 1) THEN
+       JERR = 3
+       GO TO 900
+     END IF
+!
+!$   4.3 IF D-SCALE NOT 0, RESCALE INPUT FIELD TO ORIGINAL VALUE
+!
+   IF (JSCALE .NE. 0) THEN
+     DSCALE = 1.0 / SCALE
+     IF (ITYPE .EQ. 0) THEN
+       DO 412 I = 1,NPTS
+         FLD(I) = FLD(I) * DSCALE
+  412     CONTINUE
+     ELSE
+       DO 413 I = 1,NPTS
+         IFLD(I) = NINT(FLOAT(IFLD(I)) * DSCALE)
+  413     CONTINUE
+     END IF
+   END IF
+!
+!$           5.0   OUTPUT SECTION.
+!
+!$           5.1   ZERO OUT THE OUTPUT ARRAY KBUF.
+!
+   ZERO    = CHAR(00)
+   ITOT    = IGRIBL + IPDSL + LENGDS + LENBMS + LENBDS + 4
+!
+!     PRINT *,'IGRIBL  =',IGRIBL
+!     PRINT *,'IPDSL   =',IPDSL
+!     PRINT *,'LENGDS  =',LENGDS
+!     PRINT *,'LENBMS  =',LENBMS
+!     PRINT *,'LENBDS  =',LENBDS
+!     PRINT *,'ITOT    =',ITOT
+!
+!     KBUF MUST BE ON A WORD BOUNDRY, EQUIVALENCE TO AN
+!     INTEGER ARRAY IN THE MAIN PROGRAM TO MAKE SURE IT IS.
+!     THIS IS BOTH COMPUTER AND COMPILER DEPENDENT, W3FI01
+!     IS USED TO FILD OUT IF THE COMPUTER IS A 64 BIT OR
+!     32 BIT WORD SIZE COMPUTER. LW IS SET TO 4 FOR 32 BIT
+!     COMPUTER, 8 FOR 64 BIT COMPUTER.
+!
+   CALL W3FI01(LW)
+   IWORDS = ITOT / LW
+!HMHJ CALL XSTORE(KBUF,0,IWORDS)
+   CALL XSTORE(KBUF,ZERO,ITOT)
+!HMHJ      IF (MOD(ITOT,LW).NE.0) THEN
+!HMHJ        IBYTES = ITOT - IWORDS * LW
+!HMHJ        DO 510 I = 1,IBYTES
+!HMHJ          KBUF(IWORDS * LW + I) = ZERO
+  510   CONTINUE
+!HMHJ      END IF
+!
+!$           5.2   MOVE SECTION 0 - 'IS' INTO KBUF (8 BYTES).
+!
+   ISTART  = 0
+   DO 520 I = 1,4
+     KBUF(I) = CHAR(IB(I))
+  520 CONTINUE
+!
+   KBUF(5) = CHAR(MOD(ITOT / 65536,256))
+   KBUF(6) = CHAR(MOD(ITOT /   256,256))
+   KBUF(7) = CHAR(MOD(ITOT        ,256))
+   KBUF(8) = CHAR(1)
+!
+!$           5.3   MOVE SECTION 1 - 'PDS' INTO KBUF (28 BYTES).
+!
+   ISTART  = ISTART + IGRIBL
+   IF (IPDSL.GT.0) THEN
+     CALL XMOVEX(KBUF(ISTART+1),PDS,IPDSL)
+   ELSE
+     PRINT *,'LENGTH OF PDS LESS OR EQUAL 0, IPDSL = ',IPDSL
+   END IF
+!
+!$           5.4   MOVE SECTION 2 - 'GDS' INTO KBUF.
+!
+   ISTART  = ISTART + IPDSL
+   IF (LENGDS .GT. 0) THEN
+     CALL XMOVEX(KBUF(ISTART+1),GDS,LENGDS)
+   END IF
+!
+!$           5.5   MOVE SECTION 3 - 'BMS' INTO KBUF.
+!
+   ISTART  = ISTART + LENGDS
+   IF (LENBMS .GT. 0) THEN
+     CALL XMOVEX(KBUF(ISTART+1),BMS,LENBMS)
+   END IF
+!
+!$           5.6   MOVE SECTION 4 - 'BDS' INTO KBUF.
+!
+!$                 MOVE THE FIRST 11 OCTETS OF THE BDS INTO KBUF.
+!
+   ISTART  = ISTART + LENBMS
+   CALL XMOVEX(KBUF(ISTART+1),BDS11,11)
+!
+!$                 MOVE THE PACKED DATA INTO THE KBUF
+!
+   ISTART  = ISTART + 11
+   IF (LEN.GT.0) THEN
+     CALL XMOVEX(KBUF(ISTART+1),PFLD,LEN)
+   END IF
+!
+!$                 ADD '7777' TO END OFF KBUF
+!   NOTE THAT THESE 4 OCTETS NOT INCLUDED IN ACTUAL SIZE OF BDS.
+!
+   SEVEN  = CHAR(55)
+   ISTART = ITOT - 4
+   DO 562 I = 1,4
+     KBUF(ISTART+I) = SEVEN
+ 562  CONTINUE
+!
+ 900  CONTINUE
+   RETURN
+   END
+   SUBROUTINE W3FI74 (IGDS,ICOMP,GDS,LENGDS,NPTS,IGERR)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    W3FI74      CONSTRUCT GRID DEFINITION SECTION (GDS)
+!   PRGMMR: FARLEY           ORG: W/NMC42    DATE: 93-08-24
+!
+! ABSTRACT: THIS SUBROUTINE CONSTRUCTS A GRIB GRID DEFINITION
+!   SECTION.
+!
+! PROGRAM HISTORY LOG:
+!   92-07-07  M. FARLEY   ORIGINAL AUTHOR
+!   92-10-16  R.E.JONES   ADD CODE TO LAT/LON SECTION TO DO
+!                         GAUSSIAN GRIDS.
+!   93-03-29  R.E.JONES   ADD SAVE STATEMENT
+!   93-08-24  R.E.JONES   CHANGES FOR GRIB GRIDS 37-44
+!   93-09-29  R.E.JONES   CHANGES FOR GAUSSIAN GRID FOR DOCUMENT
+!                         CHANGE IN W3FI71.
+!   94-02-15  R.E.JONES   CHANGES FOR ETA MODEL GRIDS 90-93
+!
+!
+! USAGE:    CALL W3FI74 (IGDS, ICOMP, GDS, LENGDS, NPTS, IGERR)
+!   INPUT ARGUMENT LIST:
+!     IGDS        - INTEGER ARRAY SUPPLIED BY W3FI71
+!     ICOMP       - TABLE 7- RESOLUTION & COMPONENT FLAG (BIT 5)
+!                   FOR GDS(17) WIND COMPONENTS
+!
+!   OUTPUT ARGUMENT LIST:
+!     GDS       - COMPLETED GRIB GRID DEFINITION SECTION
+!     LENGDS    - LENGTH OF GDS
+!     NPTS      - NUMBER OF POINTS IN GRID
+!     IGERR     - 1, GRID REPRESENTATION TYPE NOT VALID
+!
+! REMARKS:
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN 77, IBM370 VS FORTRAN
+!   MACHINE:  CRAY C916-128, CRAY Y-MP8/864, CRAY Y-MP EL2/256, HDS
+!
+!$$$
+!
+   INTEGER       IGDS  (*)
+!
+   CHARACTER*1   GDS   (*)
+!
+   SAVE
+!
+   ISUM  = 0
+   IGERR = 0
+!
+!    PRINT *,' '
+!    PRINT *,'(W3FI74-IGDS = )'
+!    PRINT *,(IGDS(I),I=1,18)
+!    PRINT *,' '
+!
+!     COMPUTE LENGTH OF GDS IN OCTETS (OCTETS 1-3)
+!       LENGTH =  32 FOR LAT/LON, GNOMIC, GAUSIAN LAT/LON,
+!                    POLAR STEREOGRAPHIC, SPHERICAL HARMONICS
+!       LENGTH =  42 FOR MERCATOR, LAMBERT, TANGENT CONE
+!       LENGTH = 178 FOR MERCATOR, LAMBERT, TANGENT CONE
+!
+   IF (IGDS(3) .EQ. 0  .OR.  IGDS(3) .EQ. 2  .OR.                              &
+       IGDS(3) .EQ. 4  .OR.  IGDS(3) .EQ. 5  .OR.                              &
+       IGDS(3) .EQ. 50 .OR.  IGDS(3) .EQ. 201.OR.                              &
+       IGDS(3) .EQ. 202) THEN
+       LENGDS = 32
+!
+!       CORRECTION FOR GRIDS 37-44
+!
+     IF (IGDS(3).EQ.0.AND.IGDS(1).EQ.0.AND.IGDS(2).NE.255) THEN
+       LENGDS = IGDS(5) * 2 + 32
+     ENDIF
+   ELSE IF (IGDS(3) .EQ. 1  .OR.  IGDS(3) .EQ. 3  .OR.                         &
+            IGDS(3) .EQ. 13) THEN
+     LENGDS = 42
+   ELSE
+     PRINT *,' W3FI74 ERROR, GRID REPRESENTATION TYPE NOT VALID'
+     IGERR = 1
+     RETURN
+   ENDIF
+!
+!     PUT LENGTH OF GDS SECTION IN BYTES 1,2,3
+!
+   GDS(1) = CHAR(MOD(LENGDS/65536,256))
+   GDS(2) = CHAR(MOD(LENGDS/  256,256))
+   GDS(3) = CHAR(MOD(LENGDS      ,256))
+!
+!     OCTET 4 = NV, NUMBER OF VERTICAL COORDINATE PARAMETERS
+!     OCTET 5 = PV, PL OR 255
+!     OCTET 6 = DATA REPRESENTATION TYPE (TABLE 6)
+!
+   GDS(4) = CHAR(IGDS(1))
+   GDS(5) = CHAR(IGDS(2))
+   GDS(6) = CHAR(IGDS(3))
+!
+!     FILL OCTET THE REST OF THE GDS BASED ON DATA REPRESENTATION
+!     TYPE (TABLE 6)
+!
+!$$
+!     PROCESS LAT/LON GRID TYPES OR GAUSSIAN GRID OR ARAKAWA
+!     SEMI-STAGGERED OF FILLED E-GRIDS
+!
+   IF (IGDS(3).EQ.0.OR.IGDS(3).EQ.4.OR.                                        &
+       IGDS(3).EQ.200.OR.IGDS(3).EQ.201) THEN
+     GDS( 7) = CHAR(MOD(IGDS(4)/256,256))
+     GDS( 8) = CHAR(MOD(IGDS(4)    ,256))
+     GDS( 9) = CHAR(MOD(IGDS(5)/256,256))
+     GDS(10) = CHAR(MOD(IGDS(5)    ,256))
+     LATO    = IGDS(6)
+     IF (LATO .LT. 0) THEN
+       LATO = -LATO
+       LATO = IOR(LATO,8388608)
+     ENDIF
+     GDS(11) = CHAR(MOD(LATO/65536,256))
+     GDS(12) = CHAR(MOD(LATO/  256,256))
+     GDS(13) = CHAR(MOD(LATO      ,256))
+     LONO    = IGDS(7)
+     IF (LONO .LT. 0) THEN
+       LONO = -LONO
+       LONO = IOR(LONO,8388608)
+     ENDIF
+     GDS(14) = CHAR(MOD(LONO/65536,256))
+     GDS(15) = CHAR(MOD(LONO/  256,256))
+     GDS(16) = CHAR(MOD(LONO      ,256))
+     LATEXT  = IGDS(9)
+     IF (LATEXT .LT. 0) THEN
+       LATEXT = -LATEXT
+       LATEXT = IOR(LATEXT,8388608)
+     ENDIF
+     GDS(18) = CHAR(MOD(LATEXT/65536,256))
+     GDS(19) = CHAR(MOD(LATEXT/  256,256))
+     GDS(20) = CHAR(MOD(LATEXT      ,256))
+     LONEXT  = IGDS(10)
+     IF (LONEXT .LT. 0) THEN
+       LONEXT = -LONEXT
+       LONEXT = IOR(LONEXT,8388608)
+     ENDIF
+     GDS(21) = CHAR(MOD(LONEXT/65536,256))
+     GDS(22) = CHAR(MOD(LONEXT/  256,256))
+     GDS(23) = CHAR(MOD(LONEXT      ,256))
+     IRES    = IAND(IGDS(8),128)
+     IF (IGDS(3).EQ.201.OR.IGDS(3).EQ.202) THEN
+       GDS(24) = CHAR(MOD(IGDS(11)/256,256))
+       GDS(25) = CHAR(MOD(IGDS(11)    ,256))
+     ELSE IF (IRES.EQ.0) THEN
+       GDS(24) = CHAR(255)
+       GDS(25) = CHAR(255)
+     ELSE
+       GDS(24) = CHAR(MOD(IGDS(12)/256,256))
+       GDS(25) = CHAR(MOD(IGDS(12)    ,256))
+     END IF
+     IF (IGDS(3).EQ.4) THEN
+       GDS(26) = CHAR(MOD(IGDS(11)/256,256))
+       GDS(27) = CHAR(MOD(IGDS(11)    ,256))
+     ELSE IF (IGDS(3).EQ.201.OR.IGDS(3).EQ.202) THEN
+       GDS(26) = CHAR(MOD(IGDS(12)/256,256))
+       GDS(27) = CHAR(MOD(IGDS(12)    ,256))
+     ELSE IF (IRES.EQ.0) THEN
+       GDS(26) = CHAR(255)
+       GDS(27) = CHAR(255)
+     ELSE
+       GDS(26) = CHAR(MOD(IGDS(11)/256,256))
+       GDS(27) = CHAR(MOD(IGDS(11)    ,256))
+     END IF
+     GDS(28) = CHAR(IGDS(13))
+     GDS(29) = CHAR(0)
+     GDS(30) = CHAR(0)
+     GDS(31) = CHAR(0)
+     GDS(32) = CHAR(0)
+     IF (LENGDS.GT.32) THEN
+       ISUM = 0
+       I    = 19
+       DO 10 J = 33,LENGDS,2
+         ISUM     = ISUM + IGDS(I)
+         GDS(J)   = CHAR(MOD(IGDS(I)/256,256))
+         GDS(J+1) = CHAR(MOD(IGDS(I)    ,256))
+         I        = I + 1
+ 10       CONTINUE
+     END IF
+!
+!$$     PROCESS MERCATOR GRID TYPES
+!
+   ELSE IF (IGDS(3) .EQ. 1) THEN
+     GDS( 7) = CHAR(MOD(IGDS(4)/256,256))
+     GDS( 8) = CHAR(MOD(IGDS(4)    ,256))
+     GDS( 9) = CHAR(MOD(IGDS(5)/256,256))
+     GDS(10) = CHAR(MOD(IGDS(5)    ,256))
+     LATO = IGDS(6)
+     IF (LATO .LT. 0) THEN
+       LATO = -LATO
+       LATO = IOR(LATO,8388608)
+     ENDIF
+     GDS(11) = CHAR(MOD(LATO/65536,256))
+     GDS(12) = CHAR(MOD(LATO/  256,256))
+     GDS(13) = CHAR(MOD(LATO      ,256))
+     LONO = IGDS(7)
+     IF (LONO .LT. 0) THEN
+       LONO = -LONO
+       LONO = IOR(LONO,8388608)
+     ENDIF
+     GDS(14) = CHAR(MOD(LONO/65536,256))
+     GDS(15) = CHAR(MOD(LONO/  256,256))
+     GDS(16) = CHAR(MOD(LONO      ,256))
+     LATEXT = IGDS(9)
+     IF (LATEXT .LT. 0) THEN
+       LATEXT = -LATEXT
+       LATEXT = IOR(LATEXT,8388608)
+     ENDIF
+     GDS(18) = CHAR(MOD(LATEXT/65536,256))
+     GDS(19) = CHAR(MOD(LATEXT/  256,256))
+     GDS(20) = CHAR(MOD(LATEXT      ,256))
+     LONEXT  = IGDS(10)
+     IF (LONEXT .LT. 0) THEN
+       LONEXT = -LONEXT
+       LONEXT = IOR(LONEXT,8388608)
+     ENDIF
+     GDS(21) = CHAR(MOD(LONEXT/65536,256))
+     GDS(22) = CHAR(MOD(LONEXT/  256,256))
+     GDS(23) = CHAR(MOD(LONEXT      ,256))
+     GDS(24) = CHAR(MOD(IGDS(13)/65536,256))
+     GDS(25) = CHAR(MOD(IGDS(13)/  256,256))
+     GDS(26) = CHAR(MOD(IGDS(13)      ,256))
+     GDS(27) = CHAR(0)
+     GDS(28) = CHAR(IGDS(14))
+     GDS(29) = CHAR(MOD(IGDS(12)/65536,256))
+     GDS(30) = CHAR(MOD(IGDS(12)/  256,256))
+     GDS(31) = CHAR(MOD(IGDS(12)      ,256))
+     GDS(32) = CHAR(MOD(IGDS(11)/65536,256))
+     GDS(33) = CHAR(MOD(IGDS(11)/  256,256))
+     GDS(34) = CHAR(MOD(IGDS(11)      ,256))
+     GDS(35) = CHAR(0)
+     GDS(36) = CHAR(0)
+     GDS(37) = CHAR(0)
+     GDS(38) = CHAR(0)
+     GDS(39) = CHAR(0)
+     GDS(40) = CHAR(0)
+     GDS(41) = CHAR(0)
+     GDS(42) = CHAR(0)
+!$$     PROCESS LAMBERT CONFORMAL GRID TYPES
+   ELSE IF (IGDS(3) .EQ. 3) THEN
+     GDS( 7) = CHAR(MOD(IGDS(4)/256,256))
+     GDS( 8) = CHAR(MOD(IGDS(4)    ,256))
+     GDS( 9) = CHAR(MOD(IGDS(5)/256,256))
+     GDS(10) = CHAR(MOD(IGDS(5)    ,256))
+     LATO = IGDS(6)
+     IF (LATO .LT. 0) THEN
+       LATO = -LATO
+       LATO = IOR(LATO,8388608)
+     ENDIF
+     GDS(11) = CHAR(MOD(LATO/65536,256))
+     GDS(12) = CHAR(MOD(LATO/  256,256))
+     GDS(13) = CHAR(MOD(LATO      ,256))
+     LONO = IGDS(7)
+     IF (LONO .LT. 0) THEN
+       LONO = -LONO
+       LONO = IOR(LONO,8388608)
+     ENDIF
+     GDS(14) = CHAR(MOD(LONO/65536,256))
+     GDS(15) = CHAR(MOD(LONO/  256,256))
+     GDS(16) = CHAR(MOD(LONO      ,256))
+     LONM = IGDS(9)
+     IF (LONM .LT. 0) THEN
+       LONM = -LONM
+       LONM = IOR(LONM,8388608)
+     ENDIF
+     GDS(18) = CHAR(MOD(LONM/65536,256))
+     GDS(19) = CHAR(MOD(LONM/  256,256))
+     GDS(20) = CHAR(MOD(LONM      ,256))
+     GDS(21) = CHAR(MOD(IGDS(10)/65536,256))
+     GDS(22) = CHAR(MOD(IGDS(10)/  256,256))
+     GDS(23) = CHAR(MOD(IGDS(10)      ,256))
+     GDS(24) = CHAR(MOD(IGDS(11)/65536,256))
+     GDS(25) = CHAR(MOD(IGDS(11)/  256,256))
+     GDS(26) = CHAR(MOD(IGDS(11)      ,256))
+     GDS(27) = CHAR(IGDS(12))
+     GDS(28) = CHAR(IGDS(13))
+     GDS(29) = CHAR(MOD(IGDS(15)/65536,256))
+     GDS(30) = CHAR(MOD(IGDS(15)/  256,256))
+     GDS(31) = CHAR(MOD(IGDS(15)      ,256))
+     GDS(32) = CHAR(MOD(IGDS(16)/65536,256))
+     GDS(33) = CHAR(MOD(IGDS(16)/  256,256))
+     GDS(34) = CHAR(MOD(IGDS(16)      ,256))
+     GDS(35) = CHAR(MOD(IGDS(17)/65536,256))
+     GDS(36) = CHAR(MOD(IGDS(17)/  256,256))
+     GDS(37) = CHAR(MOD(IGDS(17)      ,256))
+     GDS(38) = CHAR(MOD(IGDS(18)/65536,256))
+     GDS(39) = CHAR(MOD(IGDS(18)/  256,256))
+     GDS(40) = CHAR(MOD(IGDS(18)      ,256))
+     GDS(41) = CHAR(0)
+     GDS(42) = CHAR(0)
+!$$     PROCESS POLAR STEREOGRAPHIC GRID TYPES
+   ELSE IF (IGDS(3) .EQ. 5) THEN
+     GDS( 7) = CHAR(MOD(IGDS(4)/256,256))
+     GDS( 8) = CHAR(MOD(IGDS(4)    ,256))
+     GDS( 9) = CHAR(MOD(IGDS(5)/256,256))
+     GDS(10) = CHAR(MOD(IGDS(5)    ,256))
+     LATO = IGDS(6)
+     IF (LATO .LT. 0) THEN
+       LATO = -LATO
+       LATO = IOR(LATO,8388608)
+     ENDIF
+     GDS(11) = CHAR(MOD(LATO/65536,256))
+     GDS(12) = CHAR(MOD(LATO/  256,256))
+     GDS(13) = CHAR(MOD(LATO      ,256))
+     LONO = IGDS(7)
+     IF (LONO .LT. 0) THEN
+       LONO = -LONO
+       LONO = IOR(LONO,8388608)
+     ENDIF
+     GDS(14) = CHAR(MOD(LONO/65536,256))
+     GDS(15) = CHAR(MOD(LONO/  256,256))
+     GDS(16) = CHAR(MOD(LONO      ,256))
+     LONM = IGDS(9)
+     IF (LONM .LT. 0) THEN
+       LONM = -LONM
+       LONM = IOR(LONM,8388608)
+     ENDIF
+     GDS(18) = CHAR(MOD(LONM/65536,256))
+     GDS(19) = CHAR(MOD(LONM/   256,256))
+     GDS(20) = CHAR(MOD(LONM       ,256))
+     GDS(21) = CHAR(MOD(IGDS(10)/65536,256))
+     GDS(22) = CHAR(MOD(IGDS(10)/  256,256))
+     GDS(23) = CHAR(MOD(IGDS(10)      ,256))
+     GDS(24) = CHAR(MOD(IGDS(11)/65536,256))
+     GDS(25) = CHAR(MOD(IGDS(11)/  256,256))
+     GDS(26) = CHAR(MOD(IGDS(11)      ,256))
+     GDS(27) = CHAR(IGDS(12))
+     GDS(28) = CHAR(IGDS(13))
+     GDS(29) = CHAR(0)
+     GDS(30) = CHAR(0)
+     GDS(31) = CHAR(0)
+     GDS(32) = CHAR(0)
+   ENDIF
+!       PRINT 10,(GDS(IG),IG=1,32)
+!10     FORMAT ('  GDS= ',32(1X,Z2.2))
+!
+!     COMPUTE NUMBER OF POINTS IN GRID BY MULTIPLYING
+!       IGDS(4) AND IGDS(5) ... NEEDED FOR PACKER
+!
+   IF (IGDS(3).EQ.0.AND.IGDS(1).EQ.0.AND.IGDS(2).NE.255) THEN
+     NPTS = ISUM
+   ELSE
+     NPTS = IGDS(4) * IGDS(5)
+   ENDIF
+!
+!     'IOR' ICOMP-BIT 5 RESOLUTION & COMPONENT FLAG FOR WINDS
+!       WITH IGDS(8) INFO (REST OF RESOLUTION & COMPONENT FLAG DATA)
+!
+!     ICOMP   = LSHIFT(ICOMP,3)
+!     GDS(17) = CHAR(IOR(IGDS(8),ICOMP))
+!     ICOMP2   = LSHIFT(ICOMP,3)
+      ICOMP2   = ISHFT(ICOMP,3)
+      GDS(17) = CHAR(IOR(IGDS(8),ICOMP2))
+!
+   RETURN
+   END
+   SUBROUTINE W3FI75 (IBITL,ITYPE,ITOSS,FLD,IFLD,IBMAP,IBDSFL,                 &
+     NPTS,BDS11,IPFLD,PFLD,LEN,LENBDS,IBERR,PDS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI75        GRIB PACK DATA AND FORM BDS OCTETS(1-11)
+!   PRGMMR: CAVANAUGH        ORG: NMC421      DATE:93-09-22
+!
+! ABSTRACT: THIS ROUTINE PACKS A GRIB FIELD AND FORMS OCTETS(1-11)
+!   OF THE BINARY DATA SECTION (BDS).
+!
+! PROGRAM HISTORY LOG:
+!   92-07-10  M. FARLEY   ORIGINAL AUTHOR
+!   92-10-01  R.E.JONES   CORRECTION FOR FIELD OF CONSTANT DATA
+!   92-10-16  R.E.JONES   GET RID OF ARRAYS FP AND INT
+!   93-08-06  CAVANAUGH   ADDED ROUTINES FI7501, FI7502, FI7503
+!                         TO ALLOW SECOND ORDER PACKING IN PDS.
+!   93-07-21 STACKPOLE    ASSORTED REPAIRS TO GET 2ND DIFF PACK IN
+!
+! USAGE:    CALL W3FI75 (IBITL,ITYPE,ITOSS,FLD,IFLD,IBMAP,IBDSFL,
+!                     NPTS,BDS11,IPFLD,PFLD,LEN,LENBDS,IBERR,PDS)
+!   INPUT ARGUMENT LIST:
+!     IBITL     - 0, COMPUTER COMPUTES PACKING LENGTH FROM POWER
+!                    OF 2 THAT BEST FITS THE DATA.
+!                 8, 12, ETC. COMPUTER RESCALES DATA TO FIT INTO
+!                    SET NUMBER OF BITS.
+!     ITYPE     - 0 = IF INPUT DATA IS FLOATING POINT (FLD)
+!                 1 = IF INPUT DATA IS INTEGER (IFLD)
+!     ITOSS     - 0 = NO BIT MAP IS INCLUDED (DON'T TOSS DATA)
+!                 1 = TOSS NULL DATA ACCORDING TO IBMAP
+!     FLD       - REAL ARRAY OF DATA TO BE PACKED IF ITYPE=0
+!     IFLD      - INTEGER ARRAY TO BE PACKED IF ITYPE=1
+!     IBMAP     - BIT MAP SUPPLIED FROM USER
+!     IBDSFL    - INTEGER ARRAY CONTAINING TABLE 11 FLAG INFO
+!                 BDS OCTET 4:
+!                 (1) 0 = GRID POINT DATA
+!                     1 = SPHERICAL HARMONIC COEFFICIENTS
+!                 (2) 0 = SIMPLE PACKING
+!                     1 = SECOND ORDER PACKING
+!                 (3) 0 = ORIGINAL DATA WERE FLOATING POINT VALUES
+!                     1 = ORIGINAL DATA WERE INTEGER VALUES
+!                 (4) 0 = NO ADDITIONAL FLAGS AT OCTET 14
+!                     1 = OCTET 14 CONTAINS FLAG BITS 5-12
+!                 (5) 0 = RESERVED - ALWAYS SET TO 0
+!                 (6) 0 = SINGLE DATUM AT EACH GRID POINT
+!                     1 = MATRIX OF VALUES AT EACH GRID POINT
+!                 (7) 0 = NO SECONDARY BIT MAPS
+!                     1 = SECONDARY BIT MAPS PRESENT
+!                 (8) 0 = SECOND ORDER VALUES HAVE CONSTANT WIDTH
+!                     1 = SECOND ORDER VALUES HAVE DIFFERENT WIDTHS
+!     NPTS      - NUMBER OF GRIDPOINTS IN ARRAY TO BE PACKED
+!
+!   OUTPUT ARGUMENT LIST:
+!     BDS11     - FIRST 11 OCTETS OF BDS
+!     PFLD      - PACKED GRIB FIELD
+!     LEN       - LENGTH OF PFLD
+!     LENBDS    - LENGTH OF BDS
+!     IBERR     - 1, ERROR CONVERTING IEEE F.P. NUMBER TO IBM370 F.P.
+!
+! REMARKS:
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+   REAL*8          FLD(*)
+   REAL            FWORK(NPTS)
+!
+!     FWORK CAN USE DYNAMIC ALLOCATION OF MEMORY ON CRAY
+!
+!     REAL            FWORK(NPTS)
+   REAL            RMIN,REFNCE
+!
+   INTEGER         IPFLD(*)
+   INTEGER         IBDSFL(*)
+   INTEGER         IBMAP(*),NREF
+   INTEGER         IFLD(*)
+   INTEGER         KBDS(20)
+   INTEGER         IWORK(NPTS)
+!
+!     IWORK CAN USE DYNAMIC ALLOCATION OF MEMORY ON CRAY
+!
+!     INTEGER         IWORK(NPTS)
+!
+   LOGICAL         CONST
+!
+   CHARACTER * 1   BDS11(11),PDS(*)
+   CHARACTER * 1   PFLD(*)
+   CHARACTER * 1   CIEXP(8)
+   CHARACTER * 1   CIMANT(8)
+!
+   SAVE
+!
+   EQUIVALENCE     (IEXP,CIEXP(1))
+   EQUIVALENCE     (IMANT,CIMANT(1))
+   EQUIVALENCE     (REFNCE,NREF)
+!
+!            1.0   PACK THE FIELD.
+!
+!            1.1   TOSS DATA IF BITMAP BEING USED,
+!                  MOVING 'DATA' TO WORK AREA...
+!
+   CONST = .FALSE.
+   IBERR = 0
+   IW    = 0
+!
+   IF (ITOSS .EQ. 1) THEN
+     IF (ITYPE .EQ. 0) THEN
+       DO 110 IT=1,NPTS
+         IF (IBMAP(IT) .EQ. 1) THEN
+           IW = IW + 1
+           FWORK(IW) = FLD(IT)
+         ENDIF
+  110     CONTINUE
+       NPTS = IW
+     ELSE IF (ITYPE .EQ. 1) THEN
+       DO 111 IT=1,NPTS
+         IF (IBMAP(IT) .EQ. 1) THEN
+           IW = IW + 1
+           IWORK(IW) = IFLD(IT)
+         ENDIF
+  111     CONTINUE
+       NPTS = IW
+     ENDIF
+!
+!             ELSE, JUST MOVE DATA TO WORK ARRAY
+!
+   ELSE IF (ITOSS .EQ. 0) THEN
+     IF (ITYPE .EQ. 0) THEN
+       DO 112 IT=1,NPTS
+         FWORK(IT) = FLD(IT)
+  112     CONTINUE
+     ELSE IF (ITYPE .EQ. 1) THEN
+       DO 113 IT=1,NPTS
+         IWORK(IT) = IFLD(IT)
+  113     CONTINUE
+     ENDIF
+   ENDIF
+!
+!            1.2   CONVERT DATA IF NEEDED PRIOR TO PACKING.
+!                  (INTEGER TO F.P. OR F.P. TO INTEGER)
+!     ITYPE = 0...FLOATING POINT DATA
+!       IBITL = 0...PACK IN LEAST # BITS...CONVERT TO INTEGER
+!     ITYPE = 1...INTEGER DATA
+!       IBITL > 0...PACK IN FIXED # BITS...CONVERT TO FLOATING POINT
+!
+   IF (ITYPE .EQ. 0 .AND. IBITL .EQ. 0) THEN
+     DO 120 IF=1,NPTS
+       IWORK(IF) = NINT(FWORK(IF))
+  120   CONTINUE
+   ELSE IF (ITYPE .EQ. 1 .AND. IBITL .NE. 0) THEN
+     DO 123 IF=1,NPTS
+       FWORK(IF) = FLOAT(IWORK(IF))
+  123   CONTINUE
+   ENDIF
+!
+!            1.3   PACK THE DATA.
+!
+   IF (IBDSFL(2).NE.0) THEN
+!                                    SECOND ORDER PACKING
+!            PRINT*,'  DOING SECOND ORDER PACKING...'
+       IF (IBITL.EQ.0) THEN
+!             PRINT*,'    AND VARIABLE BIT PACKING'
+!
+!                           WORKING WITH INTEGER VALUES
+!                           SINCE DOING VARIABLE BIT PACKING
+!
+           MAX  = IWORK(1)
+           MIN  = IWORK(1)
+           DO 300 I = 2, NPTS
+               IF (IWORK(I).LT.MIN) THEN
+                   MIN  = IWORK(I)
+               ELSE IF (IWORK(I).GT.MAX) THEN
+                   MAX  = IWORK(I)
+               END IF
+  300         CONTINUE
+!                           EXTRACT MINIMA
+           DO 400 I = 1, NPTS
+               IWORK(I)  = IWORK(I) - MIN
+  400         CONTINUE
+           REFNCE  = MIN
+           IDIFF   = MAX - MIN
+!             PRINT *,'REFERENCE VALUE',REFNCE
+!
+      WRITE (6,FMT='(''  MINIMA REMOVED      = '',/, 10(3X,10I10,/))') (IWORK(I),I=1,6)
+      WRITE (6,FMT='(''  END OF ARRAY  = '',/,10(3X,10I10,/))') (IWORK(I),I=NPTS-5,NPTS)
+!                        SAVE REFERENCE VALUE
+           KBDS(7)  = NREF
+           CALL FI7505 (IDIFF,KWIDE)
+!             DO 750 KWIDE = 1, 31
+!                 IF (IDIFF.LE.IBITS(KWIDE)) THEN
+!                     GO TO 751
+!                 END IF
+! 750         CONTINUE
+! 751         CONTINUE
+           PRINT*,'  BIT WIDTH FOR ORIGINAL DATA', KWIDE
+           ISCAL2 = 0
+!
+!             MULTIPLICATIVE SCALE FACTOR SET TO 1
+!             IN ANTICIPATION OF POSSIBLE USE IN GLAHN 2DN DIFF
+!
+           SCAL2 = 1.
+       ELSE
+           PRINT*,'   AND FIXED BIT PACKING, IBITL = ', IBITL
+!                               FIXED BIT PACKING
+!                               - LENGTH OF FIELD IN IBITL
+!                               - MUST BE REAL DATA
+!                            FLOATING POINT INPUT
+!
+           RMAX  = FWORK(1)
+           RMIN  = FWORK(1)
+           DO 100 I = 2, NPTS
+               IF (FWORK(I).LT.RMIN) THEN
+                   RMIN  = FWORK(I)
+               ELSE IF (FWORK(I).GT.RMAX) THEN
+                   RMAX  = FWORK(I)
+               END IF
+  100         CONTINUE
+           REFNCE  = RMIN
+!                             EXTRACT MINIMA
+           DO 200 I = 1, NPTS
+               FWORK(I)  = FWORK(I) - RMIN
+  200         CONTINUE
+           PRINT *,'REFERENCE VALUE',REFNCE
+       WRITE (6,FMT='(''  MINIMA REMOVED      = '',/,10(3X,10F8.2,/))') (FWORK(I),I=1,6)
+       WRITE (6,FMT='(''  END OF ARRAY  = '',/,10(3X,10F8.2,/))') (FWORK(I),I=NPTS-5,NPTS)
+!                                FIND LARGEST DELTA
+           IDELT  = NINT(RMAX - RMIN)
+!                                DO BINARY SCALING
+!                                   FIND OUT WHAT BINARY SCALE FACTOR
+!                                       PERMITS CONTAINMENT OF
+!                                       LARGEST DELTA
+           CALL FI7505 (IDELT,IWIDE)
+!             DO 500 IWIDE = 1, 31
+!                 IF (IDELT.LE.IBITS(IWIDE)) THEN
+!                     GO TO 501
+!                 END IF
+! 500         CONTINUE
+! 501         CONTINUE
+!                                   BINARY SCALING
+           ISCAL2  = IWIDE - IBITL
+!             PRINT *,'SCALING NEEDED TO FIT = ',ISCAL2
+           PRINT*,'  RANGE OF  = ',IDELT
+!                                EXPAND DATA WITH BINARY SCALING
+!                                CONVERT TO INTEGER
+           SCAL2  = 2.0**ISCAL2
+           SCAL2  = 1./ SCAL2
+           DO 600 I = 1, NPTS
+               IWORK(I)  = NINT(FWORK(I) * SCAL2)
+  600         CONTINUE
+           KWIDE = IBITL
+       END IF
+!
+!            TEST FOR SECOND DIFFERENCE PACKING
+!            BASED OF SIZE OF PDS - SIZE IN FIRST 3 BYTES
+!
+       CALL GBYTE (PDS,IPDSIZ,0,24)
+       PRINT *,'WE HAVE A PDS SIZE OF',IPDSIZ
+       IF (IPDSIZ.GE.48) THEN
+         PRINT*,'  DO SECOND DIFFERENCE PACKING '
+!
+!             GLAHN PACKING TO 2ND DIFFS
+!
+    WRITE (6,FMT='(''  CALL TO W3FI82 WITH = '',/,10(3X,10I6,/))') (IWORK(I),I=1,6)
+    WRITE (6,FMT='(''  END OF ARRAY = '',/,10(3X,10I6,/))') (IWORK(I),I=NPTS-5,NPTS)
+           CALL W3FI82 (IWORK,FVAL1,FDIFF1,NPTS)
+           PRINT *,'GLAHN',FVAL1,FDIFF1
+    WRITE (6,FMT='(''  OUT FROM W3FI82 WITH = '',/,10(3X,10I6,/))') (IWORK(I),I=1,NPTS)
+    WRITE (6,FMT='(''  END OF ARRAY = '',/,10(3X,10I6,/))') (IWORK(I),I=NPTS-5,NPTS)
+!
+!             MUST NOW RE-REMOVE THE MINIMUM VALUE
+!             OF THE SECOND DIFFERENCES TO ASSURE
+!             ALL POSITIVE NUMBERS FOR SECOND ORDER GRIB PACKING
+!
+!             ORIGINAL REFERENCE VALUE ADDED TO FIRST POINT
+!             VALUE FROM THE 2ND DIFF PACKER TO BE ADDED
+!             BACK IN WHEN THE 2ND DIFF VALUES ARE
+!             RECONSTRUCTED BACK TO THE BASIC VALUES
+!
+!             ALSO, THE REFERENCE VALUE IS
+!             POWER-OF-TWO SCALED TO MATCH
+!             FVAL1.  ALL OF THIS SCALING
+!             WILL BE REMOVED AFTER THE
+!             GLAHN SECOND DIFFERENCING IS UNDONE.
+!             THE SCALING FACTOR NEEDED TO DO THAT
+!             IS SAVED IN THE PDS AS A SIGNED POSITIVE R
+!             TWO BYTE INTEGER
+!
+!             THE SCALING FOR THE 2ND DIF PACKED
+!             VALUES IS PROPERLY SET TO ZERO
+!
+           FVAL1 = FVAL1 + REFNCE*SCAL2
+!                                          FIRST TEST TO SEE IF
+!                                          ON 32 OR 64 BIT COMPUTER
+           CALL W3FI01(LW)
+           IF (LW.EQ.4) THEN
+               CALL W3FI76 (FVAL1,IEXP,IMANT,32)
+           ELSE
+               CALL W3FI76 (FVAL1,IEXP,IMANT,64)
+           END IF
+           CALL SBYTE (PDS,IEXP,320,8)
+           CALL SBYTE (PDS,IMANT,328,24)
+!             CALL SBYTE (PDS,FVAL1,320,32)
+!
+           IF (LW.EQ.4) THEN
+               CALL W3FI76 (FDIFF1,IEXP,IMANT,32)
+           ELSE
+               CALL W3FI76 (FDIFF1,IEXP,IMANT,64)
+           END IF
+           CALL SBYTE (PDS,IEXP,352,8)
+           CALL SBYTE (PDS,IMANT,360,24)
+!             CALL SBYTE (PDS,FDIFF1,352,32)
+!
+!             TURN ISCAL2 INTO SIGNED POSITIVE INTEGER
+!             AND STORE IN TWO BYTES
+!
+           IF(ISCAL2.GE.0)  THEN
+             CALL SBYTE (PDS,ISCAL2,384,16)
+           ELSE
+             CALL SBYTE (PDS,1,384,1)
+             ISCAL2 = - ISCAL2
+             CALL SBYTE( PDS,ISCAL2,385,15)
+           ENDIF
+!
+           MAX  = IWORK(1)
+           MIN  = IWORK(1)
+           DO 700 I = 2, NPTS
+               IF (IWORK(I).LT.MIN) THEN
+                   MIN  = IWORK(I)
+               ELSE IF (IWORK(I).GT.MAX) THEN
+                   MAX  = IWORK(I)
+               END IF
+  700         CONTINUE
+!                           EXTRACT MINIMA
+           DO 710 I = 1, NPTS
+               IWORK(I)  = IWORK(I) - MIN
+  710         CONTINUE
+           REFNCE  = MIN
+           ISCAL2 = 0
+!
+!             AND RESET VALUE OF KWIDE - THE BIT WIDTH
+!             FOR THE RANGE OF THE VALUES
+!
+           IDIFF = MAX - MIN
+           CALL FI7505 (IDIFF,KWIDE)
+!             DO 800 KWIDE = 1,31
+!               IF(IDIFF.LE.IBITS(KWIDE)) THEN
+!                 GOTO 810
+!               END IF
+! 800         CONTINUE
+! 810         CONTINUE
+           PRINT*,'BIT WIDTH (KWIDE) OF 2ND DIFFS', KWIDE
+       END IF
+    WRITE (6,FMT='(''  CALL TO FI7501 WITH = '',/,10(3X,10I6,/))') (IWORK(I),I=1,NPTS)
+!          WRITE (6,FMT='(''  END OF ARRAY = '',/,                             &
+!                       10(3X,10I6,/))') (IWORK(I),I=NPTS-5,NPTS)
+        PRINT*,' REFNCE,ISCAL2, KWIDE AT CALL TO FI7501',                      &
+                REFNCE, ISCAL2,KWIDE
+!
+!                         SECOND ORDER PACKING
+!
+       CALL FI7501 (IWORK,IPFLD,NPTS,IBDSFL,BDS11,                             &
+                LEN,LENBDS,PDS,REFNCE,ISCAL2,KWIDE)
+   ELSE
+!                                      SIMPLE PACKING
+!
+!                PRINT*,'  SIMPLE FIRST ORDER PACKING...'
+       IF (IBITL.EQ.0) THEN
+!                PRINT*,' WITH VARIABLE BIT LENGTH'
+!
+!                  WITH VARIABLE BIT LENGTH, ADJUSTED
+!                  TO ACCOMMODATE LARGEST VALUE
+!                  BINARY SCALING ALWAYS = 0
+!
+           CALL W3FI58(IWORK,NPTS,IWORK,PFLD,NBITS,LEN,KMIN)
+           RMIN   = KMIN
+           REFNCE  = RMIN
+           ISCALE = 0
+!        PRINT *,'  BIT LENGTH CAME OUT AT ... ',NBITS
+!
+!           SET CONST .TRUE. IF ALL VALUES ARE THE SAME
+!
+           IF (LEN.EQ.0.AND.NBITS.EQ.0) CONST = .TRUE.
+!
+       ELSE
+!           PRINT*,' FIXED BIT LENGTH, IBITL = ', IBITL
+!
+!             FIXED BIT LENGTH PACKING (VARIABLE PRECISION)
+!             VALUES SCALED BY POWER OF 2 (ISCALE) TO
+!             FIT LARGEST VALUE INTO GIVEN BIT LENGTH (IBITL)
+!
+           CALL W3FI59(FWORK,NPTS,IBITL,IWORK,PFLD,ISCALE,LEN,RMIN)
+           REFNCE = RMIN
+!             PRINT *,' SCALING NEEDED TO FIT IS ... ', ISCALE
+           NBITS = IBITL
+!
+!           SET CONST .TRUE. IF ALL VALUES ARE THE SAME
+!
+           IF (LEN.EQ.0) THEN
+               CONST = .TRUE.
+               NBITS = 0
+           END IF
+       END IF
+!
+!$        COMPUTE LENGTH OF BDS IN OCTETS
+!
+       INUM  = NPTS * NBITS + 88
+!         PRINT *,'NUMBER OF BITS BEFORE FILL ADDED ',INUM
+!
+!                  NUMBER OF FILL BITS
+       NLEFT  = MOD(INUM,16)
+       NFILL = 0
+       IF (NLEFT.NE.0) THEN
+           INUM  = INUM + 16 - NLEFT
+           NFILL = 16 - NLEFT
+       END IF
+!         PRINT *,'NUMBER OF BITS AFTER FILL ADDED ',INUM
+!                  LENGTH OF BDS IN BYTES
+       LENBDS = INUM / 8
+!
+!                2.0   FORM THE BINARY DATA SECTION (BDS).
+!
+!                 CONCANTENATE ALL FIELDS FOR BDS
+!
+!                               BYTES 1-3
+       CALL SBYTE (BDS11,LENBDS,0,24)
+!
+!                               BYTE  4
+!                                       FLAGS
+       CALL SBYTE (BDS11,IBDSFL(1),24,1)
+       CALL SBYTE (BDS11,IBDSFL(2),25,1)
+       CALL SBYTE (BDS11,IBDSFL(3),26,1)
+       CALL SBYTE (BDS11,IBDSFL(4),27,1)
+!                                        NR OF FILL BITS
+       CALL SBYTE (BDS11,NFILL,28,4)
+!
+!$      FILL OCTETS 5-6 WITH THE SCALE FACTOR.
+!
+!                               BYTE  5-6
+       IF (ISCALE.LT.0) THEN
+           CALL SBYTE (BDS11,1,32,1)
+           ISCALE  = - ISCALE
+           CALL SBYTE (BDS11,ISCALE,33,15)
+       ELSE
+           CALL SBYTE (BDS11,ISCALE,32,16)
+       END IF
+!
+!$  FILL OCTET 7-10 WITH THE REFERENCE VALUE
+!   CONVERT THE FLOATING POINT OF YOUR MACHINE TO IBM370 32 BIT
+!   FLOATING POINT NUMBER
+!
+!                               BYTE  7-10
+!                                        REFERENCE VALUE
+!                                          FIRST TEST TO SEE IF
+!                                          ON 32 OR 64 BIT COMPUTER
+       CALL W3FI01(LW)
+       IF (LW.EQ.4) THEN
+           CALL W3FI76 (REFNCE,IEXP,IMANT,32)
+       ELSE
+           CALL W3FI76 (REFNCE,IEXP,IMANT,64)
+       END IF
+       CALL SBYTE (BDS11,IEXP,48,8)
+       CALL SBYTE (BDS11,IMANT,56,24)
+!
+!         ABOVE DOES THE FOLLOWING BUT FOR MANY MACHINES
+!         CALL SBYTE (BDS11,REFNCE,48,32)
+!
+!$                        FILL OCTET 11 WITH THE NUMBER OF BITS.
+!
+!                               BYTE  11
+       CALL SBYTE (BDS11,NBITS,80,8)
+   END IF
+!
+   RETURN
+   END
+   SUBROUTINE FI7501 (IWORK,IPFLD,NPTS,IBDSFL,BDS11,                           &
+              LEN,LENBDS,PDS,REFNCE,ISCAL2,KWIDE)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI7501      BDS SECOND ORDER PACKING
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 93-08-06
+!
+! ABSTRACT: PERFORM SECONDARY PACKING ON GRID POINT DATA,
+!   GENERATING ALL BDS INFORMATION.
+!
+! PROGRAM HISTORY LOG:
+!   93-08-06  CAVANAUGH
+!   YY-MM-DD  MODIFIER1   DESCRIPTION OF CHANGE
+!
+! USAGE:    CALL FI7501 (IWORK,IPFLD,NPTS,IBDSFL,BDS11,
+!    *           LEN,LENBDS,PDS,REFNCE,ISCAL2,KWIDE)
+!   INPUT ARGUMENT LIST:
+!     IWORK    - INTEGER SOURCE ARRAY
+!     NPTS     - NUMBER OF POINTS IN IWORK
+!     IBDSFL   - FLAGS
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     IPFLD    - CONTAINS BDS FROM BYTE 12 ON
+!     BDS11    - CONTAINS FIRST 11 BYTES FOR BDS
+!     LEN      - NUMBER OF BYTES FROM 12 ON
+!     LENBDS   - TOTAL LENGTH OF BDS
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+   CHARACTER*1     BDS11(*),PDS(*)
+!
+   REAL            REFNCE
+!
+   INTEGER         ISCAL2,KWIDE
+   INTEGER         LENBDS
+   INTEGER         IPFLD(*)
+   INTEGER         LEN,KBDS(22)
+   INTEGER         IWORK(*)
+!                        OCTET NUMBER IN SECTION, FIRST ORDER PACKING
+!     INTEGER         KBDS(12)
+!                        FLAGS
+   INTEGER         IBDSFL(*)
+!                        EXTENDED FLAGS
+!     INTEGER         KBDS(14)
+!                        OCTET NUMBER FOR SECOND ORDER PACKING
+!     INTEGER         KBDS(15)
+!                        NUMBER OF FIRST ORDER VALUES
+!     INTEGER         KBDS(17)
+!                        NUMBER OF SECOND ORDER PACKED VALUES
+!     INTEGER         KBDS(19)
+!                        WIDTH OF SECOND ORDER PACKING
+   PARAMETER(ISOWIDD=50000)
+   INTEGER         ISOWID(ISOWIDD)
+!                        SECONDARY BIT MAP
+   PARAMETER(ISOBMPD=8200)
+   INTEGER         ISOBMP(ISOBMPD)
+!                        FIRST ORDER PACKED VALUES
+   INTEGER         IFOVAL(ISOWIDD)
+!                        SECOND ORDER PACKED VALUES
+   PARAMETER(ISOVALD=100000)
+   INTEGER         ISOVAL(ISOVALD)
+!
+!     INTEGER         KBDS(11)
+!                        BIT WIDTH TABLE
+   INTEGER         IBITS(31)
+   DATA            IBITS/1,3,7,15,31,63,127,255,511,1023,                      &
+                         2047,4095,8191,16383,32767,65535,131072,              &
+                         262143,524287,1048575,2097151,4194303,                &
+                         8388607,16777215,33554431,67108863,                   &
+                         134217727,268435455,536870911,                        &
+                         1073741823,2147483647/
+!  ----------------------------------
+!                       INITIALIZE ARRAYS
+   DO 100 I = 1, ISOWIDD
+       ISOWID(I)  = 0
+       IFOVAL(I)  = 0
+  100 CONTINUE
+!
+   DO 101 I = 1, ISOBMPD
+       ISOBMP(I)  = 0
+  101 CONTINUE
+   DO 102 I = 1, ISOVALD
+       ISOVAL(I)  = 0
+  102 CONTINUE
+!                      INITIALIZE POINTERS
+!                            SECONDARY BIT WIDTH POINTER
+   IWDPTR  = 0
+!                            SECONDARY BIT MAP POINTER
+   IBMP2P  = 0
+!                            FIRST ORDER VALUE POINTER
+   IFOPTR  = 0
+!                            BYTE POINTER TO START OF 1ST ORDER VALUES
+   KBDS(12)  = 0
+!                            BYTE POINTER TO START OF 2ND ORDER VALUES
+   KBDS(15)  = 0
+!                            TO CONTAIN NUMBER OF FIRST ORDER VALUES
+   KBDS(17)  = 0
+!                            TO CONTAIN NUMBER OF SECOND ORDER VALUES
+   KBDS(19)  = 0
+!                            SECOND ORDER PACKED VALUE POINTER
+   ISOPTR  = 0
+!  =======================================================
+!
+!                         DATA IS IN IWORK
+!
+   KBDS(11)  = KWIDE
+!
+!       DATA PACKING
+!
+   INEXT   = 1
+   ISTART  = 1
+   KEY     = 15
+!  -----------------------------------------------------------
+   ITER  = 0
+   KOUNT = 0
+ 2000 CONTINUE
+!     PRINT *,'NEXT ITERATION STARTS AT',ISTART
+   ITER  = ITER + 1
+    IF (ISTART.GT.NPTS) THEN
+        GO TO 4000
+    ELSE IF (ISTART.EQ.NPTS) THEN
+        KPTS    = 1
+        MXDIFF  = 0
+        GO TO 2200
+    END IF
+!
+!                     LOOK FOR REPITITIONS OF A SINGLE VALUE
+    CALL FI7502 (IWORK,ISTART,NPTS,ISAME)
+    IF (ISAME.GE.KEY) THEN
+        KOUNT = KOUNT + 1
+!          PRINT *,'FI7501 - FOUND IDENTICAL SET OF ',ISAME
+        MXDIFF  = 0
+        KPTS    = ISAME
+    ELSE
+!
+!                     LOOK FOR SETS OF VALUES IN TREND SELECTED RANGE
+        CALL FI7503 (IWORK,ISTART,NPTS,NMAX,NMIN,INRNGE,KEY)
+        MXDIFF  = NMAX - NMIN
+        KPTS    = INRNGE
+    END IF
+ 2200 CONTINUE
+!     PRINT *,'                 RANGE ',MXDIFF,' MAX',NMAX,' MIN',NMIN
+!                 INCREMENT NUMBER OF FIRST ORDER VALUES
+   KBDS(17)  = KBDS(17) + 1
+!                 ENTER FIRST ORDER VALUE
+   IF (MXDIFF.GT.0) THEN
+       DO 2220 LK = 0, KPTS-1
+           IWORK(ISTART+LK)  = IWORK(ISTART+LK) - NMIN
+ 2220     CONTINUE
+       CALL SBYTE (IFOVAL,NMIN,IFOPTR,KBDS(11))
+   ELSE
+       CALL SBYTE (IFOVAL,IWORK(ISTART),IFOPTR,KBDS(11))
+   END IF
+   IFOPTR  = IFOPTR + KBDS(11)
+!                  PROCESS SECOND ORDER BIT WIDTH
+   IF (MXDIFF.GT.0) THEN
+       DO 2330 KWIDE = 1, 31
+           IF (MXDIFF.LE.IBITS(KWIDE)) THEN
+               GO TO 2331
+           END IF
+ 2330     CONTINUE
+ 2331     CONTINUE
+   ELSE
+       KWIDE  = 0
+   END IF
+   CALL SBYTE (ISOWID,KWIDE,IWDPTR,8)
+   IWDPTR  = IWDPTR + 8
+!         PRINT *,KWIDE,' IFOVAL=',NMIN,IWORK(ISTART),KPTS
+!               IF KWIDE NE 0, SAVE SECOND ORDER VALUE
+   IF (KWIDE.GT.0) THEN
+       CALL SBYTES (ISOVAL,IWORK(ISTART),ISOPTR,KWIDE,0,KPTS)
+       ISOPTR  = ISOPTR + KPTS * KWIDE
+       KBDS(19)  = KBDS(19) + KPTS
+!         PRINT *,'            SECOND ORDER VALUES'
+!         PRINT *,(IWORK(ISTART+I),I=0,KPTS-1)
+   END IF
+!                 ADD TO SECOND ORDER BITMAP
+   CALL SBYTE (ISOBMP,1,IBMP2P,1)
+   IBMP2P  = IBMP2P + KPTS
+   ISTART  = ISTART + KPTS
+   GO TO 2000
+!  --------------------------------------------------------------
+ 4000 CONTINUE
+   PRINT *,'THERE WERE ',ITER,' SECOND ORDER GROUPS'
+   PRINT *,'THERE WERE ',KOUNT,' STRINGS OF CONSTANTS'
+!                 CONCANTENATE ALL FIELDS FOR BDS
+!
+!                   REMAINDER GOES INTO IPFLD
+   IPTR  = 0
+!                               BYTES 12-13
+!                                          VALUE FOR N1
+!                                          LEAVE SPACE FOR THIS
+   IPTR   = IPTR + 16
+!                               BYTE 14
+!                                          EXTENDED FLAGS
+   CALL SBYTE (IPFLD,IBDSFL(5),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(6),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(7),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(8),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(9),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(10),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(11),IPTR,1)
+   IPTR  = IPTR + 1
+   CALL SBYTE (IPFLD,IBDSFL(12),IPTR,1)
+   IPTR  = IPTR + 1
+!                               BYTES 15-16
+!                 SKIP OVER VALUE  FOR N2
+   IPTR  = IPTR + 16
+!                               BYTES 17-18
+!                                     P1
+   CALL SBYTE (IPFLD,KBDS(17),IPTR,16)
+   IPTR  = IPTR + 16
+!                               BYTES 19-20
+!                                   P2
+   CALL SBYTE (IPFLD,KBDS(19),IPTR,16)
+   IPTR  = IPTR + 16
+!                               BYTE 21 - RESERVED LOCATION
+   CALL SBYTE (IPFLD,0,IPTR,8)
+   IPTR  = IPTR + 8
+!                               BYTES 22 - ?
+!                                      WIDTHS OF SECOND ORDER PACKING
+   IX    = (IWDPTR + 32) / 32
+   CALL SBYTES (IPFLD,ISOWID,IPTR,32,0,IX)
+   IPTR  = IPTR + IWDPTR
+!                                      SECONDARY BIT MAP
+   IJ    = (IBMP2P + 32) / 32
+   CALL SBYTES (IPFLD,ISOBMP,IPTR,32,0,IJ)
+   IPTR  = IPTR + IBMP2P
+   IF (MOD(IPTR,8).NE.0) THEN
+       IPTR  = IPTR + 8 - MOD(IPTR,8)
+   END IF
+!                                         DETERMINE LOCATION FOR START
+!                                         OF FIRST ORDER PACKED VALUES
+   KBDS(12)  = IPTR / 8 + 11
+!                                        STORE LOCATION
+   CALL SBYTE (IPFLD,KBDS(12),0,16)
+!                                     MOVE IN FIRST ORDER PACKED VALUES
+   IPASS   = (IFOPTR + 32) / 32
+   CALL SBYTES (IPFLD,IFOVAL,IPTR,32,0,IPASS)
+   IPTR  = IPTR + IFOPTR
+   IF (MOD(IPTR,8).NE.0) THEN
+       IPTR  = IPTR + 8 - MOD(IPTR,8)
+   END IF
+!     PRINT *,'IFOPTR =',IFOPTR,' ISOPTR =',ISOPTR
+!                DETERMINE LOCATION FOR START
+!                     OF SECOND ORDER VALUES
+   KBDS(15)  = IPTR / 8 + 11
+!                                   SAVE LOCATION OF SECOND ORDER VALUES
+   CALL SBYTE (IPFLD,KBDS(15),24,16)
+!                  MOVE IN SECOND ORDER PACKED VALUES
+   IX    = (ISOPTR + 32) / 32
+   CALL SBYTES (IPFLD,ISOVAL,IPTR,32,0,IX)
+   IPTR  = IPTR + ISOPTR
+   NLEFT  = MOD(IPTR+88,16)
+   IF (NLEFT.NE.0) THEN
+       NLEFT  = 16 - NLEFT
+       IPTR   = IPTR + NLEFT
+   END IF
+!                                COMPUTE LENGTH OF DATA PORTION
+   LEN     = IPTR / 8
+!                                    COMPUTE LENGTH OF BDS
+   LENBDS  = LEN + 11
+!  -----------------------------------
+!                               BYTES 1-3
+!                                   THIS FUNCTION COMPLETED BELOW
+!                                   WHEN LENGTH OF BDS IS KNOWN
+   CALL SBYTE (BDS11,LENBDS,0,24)
+!                               BYTE  4
+   CALL SBYTE (BDS11,IBDSFL(1),24,1)
+   CALL SBYTE (BDS11,IBDSFL(2),25,1)
+   CALL SBYTE (BDS11,IBDSFL(3),26,1)
+   CALL SBYTE (BDS11,IBDSFL(4),27,1)
+!                              ENTER NUMBER OF FILL BITS
+   CALL SBYTE (BDS11,NLEFT,28,4)
+!                               BYTE  5-6
+   IF (ISCAL2.LT.0) THEN
+       CALL SBYTE (BDS11,1,32,1)
+       ISCAL2 = - ISCAL2
+   ELSE
+       CALL SBYTE (BDS11,0,32,1)
+   END IF
+   CALL SBYTE (BDS11,ISCAL2,33,15)
+!
+!$  FILL OCTET 7-10 WITH THE REFERENCE VALUE
+!   CONVERT THE FLOATING POINT OF YOUR MACHINE TO IBM370 32 BIT
+!   FLOATING POINT NUMBER
+!                                        REFERENCE VALUE
+!                                          FIRST TEST TO SEE IF
+!                                          ON 32 OR 64 BIT COMPUTER
+       CALL W3FI01(LW)
+       IF (LW.EQ.4) THEN
+           CALL W3FI76 (REFNCE,IEXP,IMANT,32)
+       ELSE
+           CALL W3FI76 (REFNCE,IEXP,IMANT,64)
+       END IF
+       CALL SBYTE (BDS11,IEXP,48,8)
+       CALL SBYTE (BDS11,IMANT,56,24)
+!
+!                               BYTE  11
+!
+   CALL SBYTE (BDS11,KBDS(11),80,8)
+!
+   RETURN
+   END
+   SUBROUTINE FI7502 (IWORK,ISTART,NPTS,ISAME)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI7502      SECOND ORDER SAME VALUE COLLECTION
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 93-06-23
+!
+! ABSTRACT: COLLECT SEQUENTIAL SAME VALUES FOR PROCESSING
+!   AS SECOND ORDER VALUE FOR GRIB MESSAGES.
+!
+! PROGRAM HISTORY LOG:
+!   93-06-23  CAVANAUGH
+!   YY-MM-DD  MODIFIER1   DESCRIPTION OF CHANGE
+!
+! USAGE:    CALL FI7502 (IWORK,ISTART,NPTS,ISAME)
+!   INPUT ARGUMENT LIST:
+!     IWORK    - ARRAY CONTAINING SOURCE DATA
+!     ISTART   - STARTING LOCATION FOR THIS TEST
+!     NPTS     - NUMBER OF POINTS IN IWORK
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     ISAME    - NUMBER OF SEQUENTIAL POINTS HAVING THE SAME VALUE
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+   INTEGER        IWORK(*)
+   INTEGER        ISTART
+   INTEGER        ISAME
+   INTEGER        K
+   INTEGER        NPTS
+!  -------------------------------------------------------------
+   ISAME  = 0
+   DO 100 K = ISTART, NPTS
+       IF (IWORK(K).NE.IWORK(ISTART)) THEN
+           RETURN
+       END IF
+       ISAME  = ISAME + 1
+  100 CONTINUE
+   RETURN
+   END
+   SUBROUTINE FI7503 (IWORK,ISTART,NPTS,NMAX,NMIN,INRNGE,KEY)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI7503      GATHER DATA IN RANGE
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 93-08-06
+!
+! ABSTRACT: CALCULATE RANGE FROM INITIAL SAMPLE OF DATA, THEN GATHER
+!   ALL DATA WITHIN RANGE AND RETURN COUNT OF ELEMENTS IN RANGE.
+!
+! PROGRAM HISTORY LOG:
+!   93-08-06  CAVANAUGH
+!   YY-MM-DD  MODIFIER1   DESCRIPTION OF CHANGE
+!
+! USAGE:    CALL FI7503 (IWORK,ISTART,NPTS,NMAX,NMIN,INRNGE,KEY)
+!   INPUT ARGUMENT LIST:
+!     IWORK    - ARRAY CONTAINING SOURCE DATA
+!     NPTS     - NUMBER OF POINTS IN IWORK
+!     ISTART   - STARTING LOCATION FOR THIS TEST
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     NMAX     - MAXIMUM VALUE OF THOSE IN RANGE
+!     NMIN     - MINIMUM VALUE OF THOSE IN RANGE
+!     INRNGE   - NUMBER OF SEQUENTIAL VALUES IN RANGE
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+   INTEGER        INRNGE
+   INTEGER        IWORK(*)
+   INTEGER        ISTART
+   INTEGER        NPTS,KEY
+   INTEGER        NMAX,NMIN,ISECB1,ISECB2
+!  ----------------------------------------------------------------
+   NMAX  = IWORK(ISTART)
+   NMIN  = IWORK(ISTART)
+   JQ    = 19
+!
+!                            GATHER INITIAL SET
+!     PRINT *,'GATHER INITIAL RANGE SET'
+   IF (ISTART+JQ.GT.NPTS) THEN
+       JR  = NPTS
+   ELSE
+       JR  = ISTART + JQ
+   END IF
+   DO 1000 K = ISTART, JR
+       PRINT *,'    ',K,IWORK(K)
+       CALL FI7502 (IWORK,K,NPTS,ISAME)
+       IF (ISAME.GE.KEY) THEN
+!                           TERMINATE SEARCH, FOUND IDENTICAL SET
+           PRINT *,'        IDENTICAL SET'
+           I = K
+           GO TO 3000
+       ELSE IF (IWORK(K).GT.NMAX) THEN
+           NMAX  = IWORK(K)
+       ELSE IF (IWORK(K).LT.NMIN) THEN
+           NMIN  = IWORK(K)
+       END IF
+ 1000 CONTINUE
+!
+!                   PERFORM LOOK AHEAD
+!                       K = JR + 1 AT THIS POINT
+!
+   CALL FI7502 (IWORK,K,NPTS,ISAME)
+   I  = K
+   IF (ISAME.GE.KEY) THEN
+!                           TERMINATE SEARCH, FOUND IDENTICAL SET
+       PRINT *,'        IDENTICAL SET'
+       GO TO 3000
+   END IF
+!
+!                         SECONDARY LOOK AHEAD TESTING
+!
+   CALL FI7505((NMAX-NMIN),ISECB1)
+   CALL FI7504 (IWORK,K,NPTS,ISECB2,KEY)
+   ITRY  = ISECB2 - ISECB1
+   PRINT *,'K =',K,' ISECB2',ISECB2,' ISECB1',ISECB1
+!
+   IF (ITRY.GT.0) THEN
+       PRINT *,'WIDER'
+!                               WIDER, NIBBLE
+!
+!
+   ELSE IF (ITRY.EQ.0) THEN
+       PRINT *,'SAME'
+!                               ELSE IF SAME, NIBBLE
+!
+!
+   ELSE IF (ITRY.LT.0) THEN
+!                               ELSE IF NARROWER, LOOK NO FURTHER,
+!                                      TERMINATE THIS SET
+       PRINT *,'NARROWER - TERMINATE THIS SET '
+       GO TO 3000
+!
+!
+!     ELSE IF IDENTICAL SET, LOOK NO FURTHER, TERMINATE THIS SET
+!             SHOULD HAVE GONE TO TERMINATION OF SEARCH
+!
+!     ELSE MAY BE AN ERROR CONDITION
+!
+   END IF
+!
+!                         PERFORM NIBBLING UNTIL OUT OF RANGE
+!                               OR LOOK-AHEAD GROUP IS NARROWER
+!                               OR ENCOUNTER STRING OF SAME VALUES
+!
+   DO 2000 I = K, NPTS
+       PRINT *,'    ',I,IWORK(I)
+!                                  IF SET OF IDENTICAL VALUES IS
+!                                   ENCOUNTERED MUST TERMINATE SEARCH
+       CALL FI7502 (IWORK,I,NPTS,ISAME)
+       IF (ISAME.GE.KEY) THEN
+!                           TERMINATE SEARCH, FOUND IDENTICAL SET
+           PRINT *,'        IDENTICAL SET'
+           GO TO 3000
+       END IF
+!                                DO A LOOK AHEAD FROM THIS LOCATION
+!                                  ESTABLISHING A NEW CONDITION
+       IF (ITRY.EQ.0.AND.I.GT.K) THEN
+           CALL FI7504 (IWORK,I,NPTS,ISECB2,KEY)
+!                                 EXIT IMMEDIATELY IF NEXT LOOK AHEAD
+!                                 IS NARROWER THAN CURRENT
+           IF (ISECB2.LT.ISECB1) GO TO 3000
+       END IF
+
+       IF (IWORK(I).GT.NMAX) THEN
+           CALL FI7505 ((IWORK(I) - NMIN),ITEST)
+           PRINT *,'                NIBBLE - GT NMAX',ITEST,ISECB1,            &
+                                 NMAX,NMIN
+           IF (ITEST.LE.ISECB1) THEN
+               NMAX  = IWORK(I)
+           ELSE
+               GO TO 3000
+           END IF
+       ELSE IF (IWORK(I).LT.NMIN) THEN
+           CALL FI7505 ((NMAX - IWORK(I)),ITEST)
+           PRINT *,'                NIBBLE - LT NMIN',ITEST,ISECB1,            &
+                                 NMAX,NMIN
+           IF (ITEST.LE.ISECB1) THEN
+               NMIN   = IWORK(I)
+           ELSE
+               GO TO 3000
+           END IF
+       END IF
+ 2000 CONTINUE
+   I = NPTS + 1
+!                     RANGE SEARCH TERMINATED
+ 3000 CONTINUE
+   INRNGE  = I - ISTART
+   RETURN
+   END
+   SUBROUTINE FI7504 (IWORK,J,NPTS,ISECB2,KEY)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI7504      GATHER DATA IN RANGE
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 93-08-06
+!
+! ABSTRACT: PERFORMING TREND ANALYSIS TO FIND ONE OF THE
+!                              FOLLOWING CONDITIONS.
+!
+!   1.   TREND - ALL VALUES ARE THE SAME.
+!                      TERMINATE RANGE SEARCH
+!   2.   TREND - RANGE OF VALUES IS WIDER.
+!                      RETURN NEW BIT WIDTH
+!   3.   TREND - RANGE OF VALUES IS NARROWER.
+!                      RETURN NEW BIT WIDTH
+!   4.   TREND - SAME RANGE.
+!
+! PROGRAM HISTORY LOG:
+!   93-08-06  CAVANAUGH
+!   YY-MM-DD  MODIFIER1   DESCRIPTION OF CHANGE
+!
+! USAGE:    CALL FI7504 (IWORK,J,NPTS,ISECB2,KEY)
+!   INPUT ARGUMENT LIST:
+!     IWORK    - ARRAY CONTAINING SOURCE DATA
+!     J        - STARTING LOCATION FOR THIS TEST
+!     NPTS     - NUMBER OF POINTS IN IWORK
+!     KEY      - MIN NUMBER OF IDENTICAL VALUES
+!
+!   OUTPUT ARGUMENT LIST:
+!     ISECB2   - BIT WIDE OF LOOK AHEAD GROUP
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+   INTEGER        IR2,L
+   INTEGER        IWORK(*)
+   INTEGER        NPTS,KEY
+   INTEGER        NMAX2,NMIN2
+!  ----------------------------------------------------------------
+   NMAX2  = IWORK(J)
+   NMIN2  = IWORK(J)
+   JQ    = 14
+!
+   DO 1000 L = J, J + JQ
+       PRINT *,'                               LOOK AHEAD',L,IWORK(L)
+       CALL FI7502 (IWORK,L,NPTS,ISAME)
+       IF (ISAME.GE.KEY) THEN
+           PRINT *,'FI7504 - IDENTICAL SET ON LOOK-AHEAD',L,IWORK(L)
+           GO TO 1100
+       ELSE IF (IWORK(L).GT.NMAX2) THEN
+           NMAX2  = IWORK(L)
+       ELSE IF (IWORK(L).LT.NMIN2) THEN
+           NMIN2  = IWORK(L)
+       END IF
+ 1000 CONTINUE
+ 1100 CONTINUE
+   IR2  = NMAX2 - NMIN2
+   CALL FI7505 (IR2,ISECB2)
+   RETURN
+   END
+   SUBROUTINE FI7505 (N,NBITS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    FI7505      DETERMINE NUMBER OF BITS TO CONTAIN VALUE
+!   PRGMMR: CAVANAUGH        ORG: W/NMC42    DATE: 93-06-23
+!
+! ABSTRACT: CALCULATE NUMBER OF BITS TO CONTAIN VALUE N, WITH A
+!            MAXIMUM OF 32 BITS.
+!
+! PROGRAM HISTORY LOG:
+!   93-06-23  CAVANAUGH
+!   YY-MM-DD  MODIFIER1   DESCRIPTION OF CHANGE
+!
+! USAGE:    CALL FI7505 (N,NBITS)
+!   INPUT ARGUMENT LIST:
+!     N        - INTEGER VALUE
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     NBITS    - NUMBER OF BITS TO CONTAIN N
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  HDS-9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+   INTEGER        N,NBITS
+   INTEGER        IBITS(31)
+!
+   DATA           IBITS/1,3,7,15,31,63,127,255,511,1023,2047,                  &
+                   4095,8191,16383,32767,65535,131071,262143,                  &
+                   524287,1048575,2097151,4194303,8388607,                     &
+                   16777215,33554431,67108863,134217727,268435455,             &
+                   536870911,1073741823,2147483647/
+!  ----------------------------------------------------------------
+!
+   DO 1000 NBITS = 1, 31
+       IF (N.LE.IBITS(NBITS)) THEN
+           RETURN
+       END IF
+ 1000 CONTINUE
+   RETURN
+   END
+   SUBROUTINE W3FI76(PVAL,KEXP,KMANT,KBITS)
+! INTEGER=64
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI76        CONVERT TO IBM370 FLOATING POINT
+!   PRGMMR: REJONES          ORG: NMC421      DATE:92-11-16
+!
+! ABSTRACT: CONVERTS FLOATING POINT NUMBER FROM MACHINE
+!   REPRESENTATION TO GRIB REPRESENTATION (IBM370 32 BIT F.P.).
+!
+! PROGRAM HISTORY LOG:
+!   85-09-15  JOHN HENNESSY  ECMWF
+!   92-09-23  JONES R. E.    CHANGE NAME, ADD DOC BLOCK
+!   93-10-27  JONES,R. E.    CHANGE TO AGREE WITH HENNESSY CHANGES
+!
+! USAGE:    CALL W3FI76 (FVAL, KEXP, KMANT, NBITS)
+!   INPUT ARGUMENT LIST:
+!     PVAL     - FLOATING POINT NUMBER TO BE CONVERTED
+!     KBITS    - NUMBER OF BITS IN COMPUTER WORD (32 OR 64)
+!
+!   OUTPUT ARGUMENT LIST:
+!     KEXP     -  8 BIT SIGNED EXPONENT
+!     KMANT    - 24 BIT  MANTISSA  (FRACTION)
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: IBM370 VS FORTRAN 77, CRAY CFT77 FORTRAN
+!   MACHINE:  HDS 9000, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+!********************************************************************
+!*
+!*    NAME      : CONFP3
+!*
+!*    FUNCTION  : CONVERT FLOATING POINT NUMBER FROM MACHINE
+!*                REPRESENTATION TO GRIB REPRESENTATION.
+!*
+!*    INPUT     : PVAL  - FLOATING POINT NUMBER TO BE CONVERTED.
+!*    KBITS     : KBITS - NUMBER OF BITS IN COMPUTER WORD
+!*
+!*    OUTPUT    : KEXP  - 8 BIT SIGNED EXPONENT
+!*                KMANT - 24 BIT MANTISSA
+!*                PVAL  - UNCHANGED.
+!*
+!*    JOHN HENNESSY , ECMWF   18.06.91
+!*
+!********************************************************************
+!
+!
+!     IMPLICIT NONE
+!
+   INTEGER IEXP
+   INTEGER ISIGN
+!
+   INTEGER KBITS
+   INTEGER KEXP
+   INTEGER KMANT
+!
+   REAL PVAL
+   REAL ZEPS
+   REAL ZREF
+!
+   SAVE
+!
+!     TEST FOR FLOATING POINT ZERO
+!
+   IF (PVAL.EQ.0.0) THEN
+     KEXP  = 0
+     KMANT = 0
+     GO TO 900
+   ENDIF
+!
+!     SET ZEPS TO 1.0E-12 FOR 64 BIT COMPUTERS (CRAY)
+!     SET ZEPS TO 1.0E-8  FOR 32 BIT COMPUTERS
+!
+   IF (KBITS.EQ.32) THEN
+     ZEPS = 1.0E-8
+   ELSE
+     ZEPS = 1.0E-12
+   ENDIF
+   ZREF = PVAL
+!
+!     SIGN OF VALUE
+!
+   ISIGN = 0
+   IF (ZREF.LT.0.0) THEN
+     ISIGN =   128
+     ZREF    = - ZREF
+   ENDIF
+!
+!     EXPONENT
+!
+   IEXP = INT(ALOG(ZREF)*(1.0/ALOG(16.0))+64.0+1.0+ZEPS)
+!
+   IF (IEXP.LT.0  ) IEXP = 0
+   IF (IEXP.GT.127) IEXP = 127
+!
+!     MANTISSA
+!
+!     CLOSEST NUMBER IN GRIB FORMAT TO ORIGINAL NUMBER
+!     (EQUAL TO, GREATER THAN OR LESS THAN ORIGINAL NUMBER).
+!
+   KMANT = NINT (ZREF/16.0**(IEXP-70))
+!
+!     CHECK THAT MANTISSA VALUE DOES NOT EXCEED 24 BITS
+!     16777215 = 2**24 - 1
+!
+   IF (KMANT.GT.16777215) THEN
+      IEXP  = IEXP + 1
+!
+!     CLOSEST NUMBER IN GRIB FORMAT TO ORIGINAL NUMBER
+!     (EQUAL TO, GREATER THAN OR LESS THAN ORIGINAL NUMBER).
+!
+      KMANT = NINT (ZREF/16.0**(IEXP-70))
+!
+!        CHECK MANTISSA VALUE DOES NOT EXCEED 24 BITS AGAIN
+!
+      IF (KMANT.GT.16777215) THEN
+        PRINT *,'BAD MANTISSA VALUE FOR PVAL = ',PVAL
+      ENDIF
+   ENDIF
+!
+!     ADD SIGN BIT TO EXPONENT.
+!
+   KEXP = IEXP + ISIGN
+!
+  900 CONTINUE
+!
+   RETURN
+   END
+   SUBROUTINE W3FI82 (IFLD,FVAL1,FDIFF1,NPTS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI82        CONVERT TO SECOND DIFF ARRAY
+!   PRGMMR: CAVANAUGH        ORG: NMC421      DATE:93-08-18
+!
+! ABSTRACT: ACCEPT AN INPUT ARRAY, CONVERT TO ARRAY OF SECOND
+!   DIFFERENCES.  RETURN THE ORIGINAL FIRST VALUE AND THE FIRST
+!   FIRST-DIFFERENCE AS SEPARATE VALUES.
+!
+! PROGRAM HISTORY LOG:
+!   93-07-14  CAVANAUGH
+!   93-08-18  R.E.JONES   RECOMPILE FOR SiliconGraphics
+!
+! USAGE:    CALL W3FI82 (IFLD,FVAL1,FDIFF1,NPTS)
+!   INPUT ARGUMENT LIST:
+!     IFLD     - INTEGER INPUT ARRAY
+!     NPTS     - NUMBER OF POINTS IN ARRAY
+!
+!   OUTPUT ARGUMENT LIST:
+!     IFLD     - SECOND DIFFERENCED FIELD
+!     FVAL1    - FLOATING POINT ORIGINAL FIRST VALUE
+!     FDIFF1   -     "      "   FIRST FIRST-DIFFERENCE
+!
+! REMARKS: LIST CAVEATS, OTHER HELPFUL HINTS OR INFORMATION
+!
+! ATTRIBUTES:
+!   LANGUAGE: SiliconGraphics 3.5 FORTRAN 77
+!   MACHINE:  SiliconGraphics model 25, 35, INDIGO
+!
+!$$$
+!
+   REAL        FVAL1,FDIFF1
+!
+   INTEGER     IFLD(*),NPTS
+!
+   SAVE
+!
+!  ---------------------------------------------
+       DO 4000 I = NPTS, 2, -1
+           IFLD(I)  = IFLD(I) - IFLD(I-1)
+ 4000     CONTINUE
+       DO 5000 I = NPTS, 3, -1
+           IFLD(I)  = IFLD(I) - IFLD(I-1)
+ 5000     CONTINUE
+!         PRINT *,'IFLD(1) =',IFLD(1),'  IFLD(2) =',IFLD(2)
+!
+!                      SPECIAL FOR GRIB
+!                         FLOAT OUTPUT OF FIRST POINTS TO ANTICIPATE
+!                         GRIB FLOATING POINT OUTPUT
+!
+       FVAL1    = IFLD(1)
+       FDIFF1   = IFLD(2)
+!
+!       SET FIRST TWO POINTS TO SECOND DIFF VALUE FOR BETTER PACKING
+!
+       IFLD(1)  = IFLD(3)
+       IFLD(2)  = IFLD(3)
+!  -----------------------------------------------------------
+   RETURN
+   END
+   SUBROUTINE XSTORE(COUT,CON,MWORDS)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:    XSTORE      STORES A CONSTANT VALUE INTO AN ARRAY
+!   PRGMMR: KEYSER           ORG: W/NMC22    DATE: 07-02-92
+!
+! ABSTRACT: STORES AN 8-BYTE (FULLWORD) VALUE THROUGH CONSECUTIVE
+!   STORAGE LOCATIONS.  (MOVING IS ACCOMPLISHED WITH A DO LOOP.)
+!
+! PROGRAM HISTORY LOG:
+!   92-07-02  D. A. KEYSER (W/NMC22)
+!   95-12-04  H. M. JUANG
+!
+! USAGE:    CALL XSTORE(COUT,CON,MWORDS)
+!   INPUT ARGUMENT LIST:
+!     CON      - CONSTANT TO BE STORED INTO "MWORDS" CONSECUTIVE
+!                FULLWORDS BEGINNING WITH "COUT" ARRAY
+!     MWORDS   - NUMBER OF FULLWORDS IN "COUT" ARRAY TO STORE "CON";
+!                MUST BE .GT. ZERO (NOT CHECKED FOR THIS)
+!
+!   OUTPUT ARGUMENT LIST:      (INCLUDING WORK ARRAYS)
+!     COUT     - STARTING ADDRESS FOR ARRAY OF "MWORDS" FULLWORDS
+!                SET TO THE CONTENTS OF THE VALUE "CON"
+!
+! REMARKS: THE VERSION OF THIS SUBROUTINE ON THE HDS COMMON LIBRARY
+!   IS NAS-SPECIFIC SUBR. WRITTEN IN ASSEMBLY LANG. TO ALLOW FAST
+!   COMPUTATION TIME.  SUBR. PLACED IN CRAY W3LIB TO ALLOW CODES TO
+!   COMPILE ON BOTH THE HDS AND CRAY MACHINES.
+!
+! ATTRIBUTES:
+!   LANGUAGE: CRAY CFT77 FORTRAN
+!   MACHINE:  CRAY Y-MP8/864
+!
+!$$$
+!
+!     DIMENSION  COUT(*)
+   CHARACTER*1 COUT(*),CON
+!
+   SAVE
+!
+   DO 1000  I = 1,MWORDS
+      COUT(I) = CON
+1000  CONTINUE
+!
+   RETURN
+   END
+   SUBROUTINE W3FI73 (IBFLAG,IBMAP,IBLEN,BMS,LENBMS,IER)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!                .      .    .                                       .
+! SUBPROGRAM:  W3FI73        CONSTRUCT GRIB BIT MAP SECTION (BMS)
+!   PRGMMR: FARLEY           ORG: NMC421      DATE:92-11-16
+!
+! ABSTRACT: THIS SUBROUTINE CONSTRUCTS A GRIB BIT MAP SECTION.
+!
+! PROGRAM HISTORY LOG:
+!   92-07-01  M. FARLEY      ORIGINAL AUTHOR
+!   94-02-14  CAVANAUGH      RECODED
+!
+! USAGE:    CALL W3FI73 (IBFLAG, IBMAP, IBLEN, BMS, LENBMS, IER)
+!   INPUT ARGUMENT LIST:
+!     IBFLAG      - 0, IF BIT MAP SUPPLIED BY USER
+!                 - #, NUMBER OF PREDEFINED CENTER BIT MAP
+!     IBMAP       - INTEGER ARRAY CONTAINING USER BIT MAP
+!     IBLEN       - LENGTH OF BIT MAP
+!
+!   OUTPUT ARGUMENT LIST:
+!     BMS       - COMPLETED GRIB BIT MAP SECTION
+!     LENBMS    - LENGTH OF BIT MAP SECTION
+!     IER       - 0 NORMAL EXIT, 8 = IBMAP VALUES ARE ALL ZERO
+!
+! ATTRIBUTES:
+!   LANGUAGE: IBM370 VS FORTRAN 77, CRAY CFT77 FORTRAN
+!   MACHINE:  HDS, CRAY C916-128, CRAY Y-MP8/864, CRAY Y-MP EL2/256
+!
+!$$$
+!
+   INTEGER       IBMAP(*)
+   INTEGER       LENBMS
+   INTEGER       IBLEN
+   INTEGER       IBFLAG
+!
+   CHARACTER*1   BMS   (*)
+!
+   SAVE
+!
+   IER   = 0
+!
+!
+   IZ  = 0
+   DO 20 I = 1, IBLEN
+       IF (IBMAP(I).EQ.0) IZ  = IZ + 1
+   20 CONTINUE
+   IF (IZ.EQ.IBLEN) THEN
+!
+!                         AT THIS POINT ALL BIT MAP POSITIONS ARE ZERO
+!
+           IER = 8
+           RETURN
+   END IF
+!
+!                          BIT MAP IS A COMBINATION OF ONES AND ZEROS
+!                          OR      BIT MAP ALL ONES
+!
+!                     CONSTRUCT BIT MAP FIELD OF BIT MAP SECTION
+!
+   CALL SBYTES (BMS,IBMAP,48,1,0,IBLEN)
+!
+   IF (MOD(IBLEN,16).NE.0) THEN
+       NLEFT  = 16 - MOD(IBLEN,16)
+   ELSE
+       NLEFT  = 0
+   END IF
+!
+   NUM  = 6 + (IBLEN+NLEFT) / 8
+!
+!
+!                          CONSTRUCT BMS FROM COLLECTED DATA
+!
+!                          SIZE INTO FIRST THREE BYTES
+   CALL SBYTE (BMS,NUM,0,24)
+!                          NUMBER OF FILL BITS INTO BYTE 4
+   CALL SBYTE (BMS,NLEFT,24,8)
+!                          OCTET 5-6 TO CONTAIN INFO FROM IBFLAG
+   CALL SBYTE (BMS,IBFLAG,32,16)
+!
+!                          BIT MAP MAY BE ALL ONES OR A COMBINATION
+!                          OF ONES AND ZEROS
+!
+!                          ACTUAL BITS OF BIT MAP PLACED ALL READY
+!
+!                          INSTALL FILL POSITIONS IF NEEDED
+   IF (NLEFT.NE.0) THEN
+       NLEFT  = 16 - NLEFT
+!                          ZERO FILL POSITIONS
+       CALL SBYTE (BMS,0,IBLEN+48,NLEFT)
+   END IF
+!
+!     STORE NUM IN LENBMS  (LENGTH OF BMS SECTION)
+!
+   LENBMS = NUM
+!     PRINT *,'W3FI73 - BMS LEN =',NUM,LENBMS
+!
+   RETURN
+   END

@@ -1,0 +1,355 @@
+#!/bin/sh
+#
+quickfixctl () 
+{
+      sed 's/^ *200 *10 *$/      2760    10/g' $2 | \
+      sed 's/0 33,105,0/0 33,105,10/g' | \
+      sed 's/0 34,105,0/0 34,105,10/g' | \
+      sed 's/0 11,105,0/0 11,105,2/g' | \
+      sed 's/0 51,105,0/0 51,105,2/g' | \
+      sed 's/0 15,1,0/0 15,1,2/g' | \
+      sed 's/0 16,1,0/0 16,1,2/g' | \
+      sed 's/0 15,105,0/0 15,105,2/g' | \
+      sed 's/0 16,105,0/0 16,105,2/g' | \
+      sed 's/xdef   192 linear    0.000  0.047/xdef   192 linear    0.000  1.875/g' | \
+      sed 's/ *$//g' >out.$$
+			nvars=`awk '/^vars / {print $2}' $2`
+			if [ $1 = osu ] ; then
+				nvarp=`expr $nvars + 2`
+				sed "s/^vars  *$nvars/vars     $nvarp/g" out.$$ | \
+				sed 's/^SOILW .*$/SOILW1     0 144,112,10 Volumetric soil moisture content\nSOILW2     0 144,112,2760 Volumetric soil moisture content/g' | \
+      sed 's/^TMPdlr .*$/TMPdlr1    0 11,112,10 Soil temperature\nTMPdlr2    0 11,112,2760 Volumetric soil moisture content/g' >outx.$$
+			elif [ $1 = osu1 ] ; then
+				nvarp=`expr $nvars + 2`
+				sed "s/^vars  *$nvars/vars     $nvarp/g" out.$$ | \
+				sed 's/^SOILW .*$/SOILW1     0 144,112,10 Volumetric soil moisture content\nSOILW2     0 144,112,2760 Volumetric soil moisture content/g' | \
+      sed 's/^TMPdlr .*$/TMPdlr1    0 11,112,10 Soil temperature\nTMPdlr2    0 11,112,2760 Volumetric soil moisture content/g' >outx.$$
+			elif [ $1 = osu1 ] ; then
+				nvarp=`expr $nvars + 2`
+				sed "s/^vars  *$nvars/vars     $nvarp/g" out.$$ | \
+				sed 's/^SOILW .*$/SOILW1     0 144,112,10 Volumetric soil moisture content\nSOILW2     0 144,112,2760 Volumetric soil moisture content/g' | \
+      sed 's/^TMPdlr .*$/TMPdlr1    0 11,112,10 Soil temperature\nTMPdlr2    0 11,112,2760 Volumetric soil moisture content/g' >outx.$$
+			elif [ $1 = noah ] ; then
+				nvarp=`expr $nvars + 6`
+				sed "s/^vars  *$nvars/vars     $nvarp/g" out.$$ | \
+				sed 's/^SOILW .*$/SOILW1     0 144,112,10 Volumetric soil moisture content\nSOILW2     0 144,112,2600 Volumetric soil moisture content\nSOILW3     0 144,112,10340 Volumetric soil moisture content\nSOILW4     0 144,112,25800 Volumetric soil moisture content/g' | \
+      sed 's/^TMPdlr .*$/TMPdlr1    0 11,112,10 Soil temperature\nTMPdlr2    0 11,112,2600 Volumetric soil moisture content\nTMPdlr3    0 11,112,10340 Soil temperature\nTMPdlr4    0 11,112,25800 Soil temperature/g' >outx.$$
+			elif [ $1 = vic ] ; then
+				nvarp=`expr $nvars + 6`
+				sed "s/^vars  *$nvars/vars     $nvarp/g" out.$$ | \
+				sed 's/^SOILW .*$/SOILW1     0 144,112,1 Volumetric soil moisture content\nSOILW2     0 144,112,258 Volumetric soil moisture content\nSOILW3     0 144,112,515 Volumetric soil moisture content/g' | \
+      sed 's/^TMPdlr .*$/TMPdlr1    0 11,112,1 Soil temperature\nTMPdlr2    0 11,112,258 Volumetric soil moisture content\nTMPdlr3    0 11,112,515 Soil temperature\nTMPdlr4    0 11,112,772 Soil temperature\nTMPdlr5    0 11,112,1029 Soil temperature/g' >outx.$$
+			fi
+      mv outx.$$ $2
+			rm out.$$
+}
+#
+nflag=
+
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+GRMAPDIR=`pwd`
+echo "GRMAPDIR=$GRMAPDIR"
+export GRMAPDIR
+cd $currdir
+#
+#  flag for file type - zonal,ken,bges files
+#
+zflag=
+kflag=
+bflag=
+Gflag=
+#
+uindx=f
+#
+USAGE="Usage: $0 [-i] [-G] [-o outdir] [-g gribmap_argument] [-s [osu,noah,vic]] [-n] files"
+#
+Hflag=-H
+Nflag=-N
+#
+numf=$#
+if [ $numf -eq 0 ] ; then
+	echo $USAGE
+	#
+	echo ' -G :launches grads at the end'
+	echo ' -n  :flag for non-grib file, namely znl, ken and bges files.'
+	echo ' -i  :Interactive mode'
+	echo ' -o dir :Create control files in dir'
+	echo '     without -o, files are created in the input grib file directory'
+	echo ' -g arg :gribmap arguments'
+	echo ' -c arg :arg=[osu,noah,vic] osu default'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+#
+set -- `getopt o:g:c:inG $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+	case $1 in
+		-n) nflag=$1 ;;
+		-i) iflag=$1 ;;
+		-G) Gflag=$1 ;;
+		-o) oarg=$2 ;;
+		-g) garg=$2 ;;
+		-c) carg=$2 ;;
+	esac
+	shift
+done
+shift
+#
+oflag=
+odir=
+if [ -n "$oarg" ] ; then
+	oflag=-o
+	odir=$oarg
+fi
+if [ -n "$garg" ] ; then
+	garg=-$garg
+fi
+#if [ -z "$carg" ] ; then
+#	carg=osu
+#fi
+#
+#  reverse Nflag/Iflag and Hflag/oflag
+#
+if [ -n "$iflag" -o -n "$nflag" ] ; then
+	Nflag=
+fi
+if [ -n "$oflag" ] ; then
+	Hflag=
+fi
+#
+if [ -z "$USER" ] ; then
+	user=$LOGNAME
+else
+	user=$USER
+fi
+#
+tmp=tmp
+pwd=`pwd`
+#
+RDCNT=0
+if [ -n "$nflag" ] ; then
+	echo ' Specify non-grib file type. z=zonal, k=ken, b=bges -==>\c'
+	ccc=0
+	while [ $ccc -eq 0 ] ; do
+		read fty
+		if [ "$fty" != g -a "$fty" != z -a "$fty" != k -a "$fty" != b ] ; then
+			echo ' Illegal input. Type g/z/k ==>\c'
+			ccc=0
+		else
+			if [ "$fty" = z ] ; then
+				zflag=-z
+			elif [ "$fty" = k ] ; then
+				kflag=-k
+			elif [ "$fty" = b ] ; then
+				bflag=-b
+			fi
+			ccc=1
+		fi
+	done
+else
+	fty=g
+fi
+#
+set $*
+mapsorc=$1
+hmaps=`echo $mapsorc | cut -c 1`
+if [ "$hmaps" != '/' ] ; then
+	mapsorc=$pwd/$mapsorc
+fi
+# 
+if [ -z "$Hflag" ] ; then
+	mkdir -p $odir 2>/dev/null
+	cd $odir
+	if [ $? -ne 0 ] ; then
+		echo "`date` $0: cd to $odir failed." >>ERROR.out
+		exit 8
+	fi
+fi
+#
+if [ -n "$zflag" ] ; then
+	iftype=1
+	uarg=0
+elif [ -n "$kflag" ] ; then
+	iftype=2
+	uarg=0
+elif [ -n "$bflag" ] ; then
+	echo 'Is this old_sfc, sfc or sfc_anl or r_sfc? (o/n/a/r) ==>\c'
+	read yn
+	if [ "$yn" = n ] ; then
+		iftype=4
+	elif [ "$yn" = a ] ; then
+		iftype=5
+	elif [ "$yn" = r ] ; then
+		iftype=6
+	else
+		iftype=3
+	fi
+	uarg=0
+else
+	iftype=0
+fi
+n=0
+for filenam
+do
+	delim=yes
+	DELIM=
+	for ii in '%' '#' '~' '@'
+	do
+		echo $filenam | grep "$ii" >/dev/null
+		if [ $? -eq 0 ] ; then
+			DELIM="$ii"
+			break
+		fi
+	done
+	if [ -z "$DELIM" ] ; then
+		delim=non
+		DELIM='%'
+	fi
+	export DELIM
+	hmaps=`echo $filenam | cut -c 1`
+	if [ "$hmaps" != '/' ] ; then
+		filenam=$pwd/$filenam
+	fi
+	echo $filenam | grep "$DELIM" >/dev/null
+	if [ $? -ne 0 -a ! -s  $filenam ] ; then
+		echo " Error!!! Given file $filenam empty."
+		echo "`date` $0: $filenam empty." >>ERROR.out
+		exit 8
+	fi
+	n=`expr $n + 1`
+	eval filenam$n=$filenam
+	eval iftype$n=$iftype
+	eval fncntl$n='~'
+	shift
+done
+nfile=$n
+RUNAME=EXP1
+choice=no
+#
+n=1
+while [ $n -le $nfile ] ; do
+	filen=`eval echo '\$filenam'$n`
+	if [ -n "$filen" ] ; then
+		argu="$argu $filen"
+		iftype=`eval echo '$iftype'$n`
+		filecl=`eval echo '$fncntl'$n`
+		if [ "$uarg" != 0 -a "$iftype" = 0 ] ; then
+			uarg=U
+		fi
+		IFTYPE="$IFTYPE$iftype"
+		FNCTLI="$FNCTLI'$filecl',"
+	fi
+	n=`expr $n + 1`
+done
+#
+echo IFTYPE=$IFTYPE
+#
+# rm namlpre.data 2>/dev/null
+#
+if [ -n "$uarg" ] ; then
+	INTRES=$uarg
+else
+	INTRES=U
+fi
+#
+NFLAG=$Nflag
+#
+export IFTYPE
+export FNCTLI
+export RUNAME
+export INTRES
+export RDCNT
+export NFLAG
+#
+$GRMAPDIR/grmapsub $argu
+cc=$?
+if [ $cc -ne 0 ] ; then
+	exit 8
+	echo "`date` $0: grmapsub failed." >>ERROR.out
+fi
+#
+echo ' '
+echo " The files are created in the directory `pwd`"
+echo ' '
+#
+GRIBMAP=gribmap
+#
+grep 'FNGSCTL=' print.out >ctlname.tmp
+set -- `wc -l ctlname.tmp`
+if [ $1 -le 0 ] ; then
+	echo "No .ctl file created.  Error"
+	echo "`date` $0: No .ctl file created." >>ERROR.out
+	exit 8
+elif [ $delim = yes ] ; then
+	if [ -z "$oflag" ] ; then
+		file=`sed -n "1 p" ctlname.tmp | cut -d'=' -f2 | sed 's/ //g'` 
+		dir=`grep dset $file | sed 's/dset *//g' | sed 's?[^/]*$??g'`
+		echo dir=$dir
+	sed "s?index ?index $dir?g" $file >ctl.tmp
+ 	cp ctl.tmp $file
+		echo "$file modified."
+	else
+		file=`sed -n "1 p" ctlname.tmp | cut -d'=' -f2 | sed 's/ //g'` 
+	fi
+#
+# quick fix for soil wetness level specification
+#
+	if [ ! -z "$carg" ] ; then
+		quickfixctl $carg $file
+	fi
+#
+	echo "$GRIBMAP $garg -i $file"
+	$GRIBMAP $garg -i $file
+else
+	n=1
+	while [ $n -le $1 ] ; do
+		file=`sed -n "$n p" ctlname.tmp | cut -d'=' -f2 | sed 's/ //g'` 
+		if [ -z "$oflag" ] ; then
+			dir=`grep dset $file | sed 's/dset *//g' | sed 's?[^/]*$??g'`
+			echo dir=$dir
+			if [ $1 -eq 1 ] ; then
+				ctl=`grep '^dset' $file | cut -d' ' -f2`.ctl
+				idx=`grep '^dset' $file | sed 's?.*/??g' | sed 's/ //g'`.idx
+				sed "s?index .*?index $dir$idx?g" $file >$ctl
+			else
+				filex=`echo $file | sed 's/\.ctl//g'`
+				ctl=`grep '^dset' $file | cut -d' ' -f2`.$filex.ctl
+				idx=`grep '^dset' $file | sed 's?.*/??g' | sed 's/ //g'`.$filex.idx
+				sed "s?index .*?index $dir$idx?g" $file >$ctl
+			fi
+			echo "$file renamed as $ctl"
+			rm $file
+			file=$ctl
+		else
+			ctl=`grep '^dset' $file | cut -d' ' -f2 | sed 's?.*/??g'`.ctl
+			idx=`grep '^dset' $file | cut -d' ' -f2 | sed 's/ //g'`.idx
+			sed "s?index .*?index $idx?g" $file >$ctl
+			echo "$file renamed as $ctl"
+			rm $file
+			file=$ctl
+		fi
+#
+# quick fix for soil wetness level specification
+# also fix for 2m and 10m fields
+#
+	if [ ! -z "$carg" ] ; then
+		quickfixctl $carg $file
+	fi
+#
+		$GRIBMAP $garg -i $file
+		n=`expr $n + 1`
+	done
+fi
+rm ctlname.tmp ctl.tmp 2>/dev/null
+echo ' '
+echo " The files were created in the directory `pwd`"
+ls -l $file
+rm namlpre.* stdout stderr  2>/dev/null
+if [ ! -z "$Gflag" ] ; then
+	grads -l -c "open $file"
+fi
+exit 0

@@ -1,0 +1,253 @@
+#! /bin/sh 
+#set -ax
+#
+#-------------------------------------------------------------------------------
+#
+#  grims lib-script configuration
+#
+#    Program history :
+#
+#    12-19-2000   song-you hong & masao kanamitsu     initial development
+#    03-19-2011   song-you hong & nml group           grims setup
+#
+#-------------------------------------------------------------------------------
+#
+#  Change the following variable 
+#
+#  MACHINE=[sgi/origin/ibmsp/sun/dec/hp/cray/t90/t3e/linux_pgi/linux_intel/x1e]
+#  MARCH=[single,thread,mpi,hybrid,mac]
+#  INSTITUTION=[sml,nml,kisti,kma,kesti,ncar,apcc,snu,noaa,kiaps,kiapsrt,haenam]
+#
+MACHINE=linux_intel
+MARCH=mpi
+INSTITUTION=nml
+USERNAME=baram
+#
+#
+#  If special options for compilation is needed, change below
+#
+OPTIONS_FILE=./opt_libs/options-$MACHINE-$MARCH
+if [ -s $OPTIONS_FILE-$INSTITUTION ]; then
+	cp $OPTIONS_FILE-$INSTITUTION $OPTIONS_FILE
+fi
+#
+#=== End of user edit section ==================================================== 
+#
+echo $0 | grep '/' >/dev/null
+if [ $? -eq 0 ] ; then
+  dir=`echo $0 | sed 's?/[^/]*$??g'`
+  cd $dir
+fi
+currdir=`pwd`
+LIBS_DIR=`pwd`
+cd $currdir
+#
+INST_DIR=$LIBS_DIR
+LIB_DIR=$INST_DIR/lib
+ETC_DIR=$INST_DIR/etc
+CON_DIR=$INST_DIR/con
+CONROP_DIR=$INST_DIR/con_rop
+CONGOP_DIR=$INST_DIR/con_gop
+CONGSI_DIR=$INST_DIR/con_gsi
+EXTRA_LIBS=
+#
+# create machine.h
+#
+MCH=`echo $MACHINE | tr '[a-z]' '[A-Z]'`
+if [ $MCH = CRAY -o $MCH = CRAY-CF77 ] ; then
+	MCH=CRA
+fi
+echo "#define $MCH" >machine.h
+#
+#  Create install directories
+#
+mkdir -p $LIB_DIR 2>/dev/null
+mkdir -p $ETC_DIR 2>/dev/null
+mkdir -p $CON_DIR 2>/dev/null
+#
+#  List of Makefiles to be configured
+#
+CONFIG_FILES="con/Makefile \
+	lib/Makefile \
+	lib/w3lib_$MACHINE/Makefile \
+ 	lib/modelib/Makefile \
+ 	lib/ncaru/Makefile \
+ 	lib/ncaru/lib/Makefile \
+ 	lib/ncaru/utils/Makefile \
+	etc/Makefile \
+	etc/util_$MACHINE/Makefile \
+	etc/utils/Makefile \
+	etc/utils_gdas/Makefile 
+	"
+if [ -d $CONROP_DIR ]; then
+  CONFIG_FILES_2="con_rop/Makefile"
+elif [ -d $CONGOP_DIR ]; then
+  CONFIG_FILES_2="con_gop/Makefile"
+elif [ -d $CONGSI_DIR ]; then
+  CONFIG_FILES_2="con_gsi/Makefile"
+fi
+#
+# === for ssi gsi ... it will be on in future
+#
+#	etc/utils_gdas/Makefile \
+#	lib/bufrlib_$MACHINE/Makefile 
+#	"
+#
+#  Compiler, loader options for model, etc, w3lib and bufrlib
+#
+. ./$OPTIONS_FILE
+#
+# Include directory for libs and etc should be directed to machine.h
+#
+UTIL_INCLUDE_DIR="-I.. -I../.."
+UTILS_INCLUDE_DIR="-I.. -I../.."
+BFLIB_INCLUDE_DIR="-I.. -I../.."
+W3LIB_INCLUDE_DIR="-I.. -I../.."
+MODELIB_INCLUDE_DIR="-I.. -I../.."
+#
+#  Create Makefile
+#
+cat <<EOF >seddat_libs
+s%@MACHINE@%$MACHINE%g
+s%@SHELL@%$SHELL%g
+s%@AR@%$AR%g
+s%@AS@%$AS%g
+s%@CP@%$CP%g
+s%@RM@%$RM%g
+s%@CD@%$CD%g
+s%@CC@%$CC%g
+s%@CPP@%$CPP%g
+s%@MAKE@%$MAKE%g
+s%@MKDIR@%$MKDIR%g
+s%@CHMOD@%$CHMOD%g
+s%@ECHO@%$ECHO%g
+s%@FTNID@%$FTNID%g
+s%@FTASS@%$FTASS%g
+s%@RUNENV@%$RUNENV%g
+
+s%@F77@%$F77%g
+s%@FORT_FLAGS@%$FORT_FLAGS%g
+s%@LOAD_FLAGS@%$LOAD_FLAGS%g
+s%@UTIL_F77@%$UTIL_F77%g
+s%@UTIL_FORT_FLAGS@%$UTIL_FORT_FLAGS%g
+s%@UTIL_LOAD_FLAGS@%$UTIL_LOAD_FLAGS%g
+s%@UTIL_INCLUDE_DIR@%$UTIL_INCLUDE_DIR%g
+s%@UTILS_INCLUDE_DIR@%$UTILS_INCLUDE_DIR%g
+s%@W3LIB_F77@%$W3LIB_F77%g
+s%@W3LIB_FORT_FLAGS@%$W3LIB_FORT_FLAGS%g
+s%@W3LIB_LOAD_FLAGS@%$W3LIB_LOAD_FLAGS%g
+s%@W3LIB_INCLUDE_DIR@%$W3LIB_INCLUDE_DIR%g
+s%@MODELIB_F77@%$W3LIB_F77%g
+s%@MODELIB_FORT_FLAGS@%$FORT_FLAGS%g
+s%@MODELIB_LOAD_FLAGS@%$LOAD_FLAGS%g
+s%@MODELIB_INCLUDE_DIR@%$MODELIB_INCLUDE_DIR%g
+s%@BFLIB_F77@%$BFLIB_F77%g
+s%@BFLIB_FORT_FLAGS@%$BFLIB_FORT_FLAGS%g
+s%@BFLIB_LOAD_FLAGS@%$BFLIB_LOAD_FLAGS%g
+s%@BFLIB_INCLUDE_DIR@%$BFLIB_INCLUDE_DIR%g
+s%@FFT99M@%$FFT99M%g
+
+s%@LIB_DIR@%$LIB_DIR%g
+s%@ETC_DIR@%$ETC_DIR%g
+s%@CON_DIR@%$CON_DIR%g
+s%@CONROP_DIR@%$CONROP_DIR%g
+s%@CONGOP_DIR@%$CONGOP_DIR%g
+s%@CONGSI_DIR@%$CONGSI_DIR%g
+
+s%@EXTRA_LIBS@%$EXTRA_LIBS%g
+s%@USERNAME@%$USERNAME%g
+EOF
+#
+#  Edit Makefile
+#
+if [ ! -s con/top4m_avg.20i4.asc.Z ] ; then
+	if [ -s glob.soil.bble.grib.Z ] ; then
+		echo "creating Makefile for gmp with vic files"
+		makein=makefiles/Makefile.vlibs.in
+	else
+		echo "creating Makefile for gmp"
+		makein=makefiles/Makefile.libs.in
+	fi
+else
+	if [ ! -s con/E020N40.Z ] ; then
+		if [ -s con/glob.soil.bble.grib.Z ] ; then
+			echo "creating Makefile for rmp with vic files"
+			makein=makefiles/Makefile.rvlibs.in
+		else
+			echo "creating Makefile for rmp"
+			makein=makefiles/Makefile.rlibs.in
+		fi
+	else
+		if [ -s con/glob.soil.bble.grib.Z ] ; then
+			echo "creating Makefile for rmp with vic files and gtopo30"
+			makein=makefiles/Makefile.rtvlibs.in
+		else
+			echo "creating Makefile for gmp and rmp with gtopo30"
+			makein=makefiles/Makefile.rtlibs.in
+		fi
+	fi
+fi
+sed -f seddat_libs $makein >Makefile
+for file in $CONFIG_FILES
+do
+	echo "creating $file"
+	sed -f seddat_libs $file.in >$file
+done
+for file in $CONFIG_FILES_2
+do
+	echo "creating $file"
+	sed -f seddat_libs $file.in >$file
+done
+#
+#  Edit and copy etc scripts
+#
+for file in `ls con/*.in`
+do
+	fileo=`echo $file | sed 's/\.in$//g'`
+	echo "creating $fileo"
+	sed -f seddat_libs $file >$fileo
+	chmod a+x $fileo
+done
+for file in `ls etc/*.in`
+do
+	fileo=`echo $file | sed 's/\.in$//g'`
+	echo "creating $fileo"
+	sed -f seddat_libs $file >$fileo
+	chmod a+x $fileo
+done
+#
+#  Clean up
+#
+if [ "$1" = clean ] ; then
+	for file in `ls con/*.Z`
+	do
+		if [ $file != 'con/navydata.asc.Z' ] ; then
+			rm $file
+		fi
+	done
+	for dir in `ls -d etc/util_*`
+	do
+		if [ $dir != etc/util_$MACHINE ] ; then
+			rm -r $dir
+		fi
+	done
+	for file in `ls etc/options-*`
+	do
+		if [ $file != etc/options-$MACHINE ] ; then
+			rm -r $file
+		fi
+	done
+	for dir in `ls -d lib/bufrlib_*`
+	do
+		if [ $dir != lib/bufrlib_$MACHINE ] ; then
+			rm -r $dir
+		fi
+	done
+	for dir in `ls -d lib/w3lib_*`
+	do
+		if [ $dir != lib/w3lib_$MACHINE ] ; then
+			rm -r $dir
+		fi
+	done
+fi
+#

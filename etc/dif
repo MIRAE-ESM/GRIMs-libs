@@ -1,0 +1,25 @@
+#!/bin/sh
+if [ $# -ne 2 ] ; then
+	echo "Usage $0: directory F/f"
+	exit
+fi
+comp_dir=$1
+Forf=$2
+
+for file in `ls *.$Forf`
+do
+	if [ ! -s $comp_dir/$file ] ; then
+		echo $comp_dir/$file does not exist
+		read dummy
+		continue
+	fi
+	sed '/^c/d' $file | sed 's/ *$//g' >temp1
+	sed '/^c/d' $comp_dir/$file | sed 's/ *$//g' >temp2
+    diff temp1 temp2 >/dev/null
+    if [ $? -ne 0 ] ; then
+		clear
+        echo $file
+        diff -b temp1 temp2 | more
+        read dummy
+    fi
+done

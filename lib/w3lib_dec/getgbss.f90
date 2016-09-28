@@ -1,0 +1,201 @@
+!-----------------------------------------------------------------------
+   SUBROUTINE GETGBSS(CBUF,NLEN,NNUM,J,JPDS,JGDS,JENS,                         &
+                       K,KPDS,KGDS,KENS,LSKIP,LGRIB,IRET)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!
+! SUBPROGRAM: GETGB$S        FINDS A GRIB MESSAGE
+!   PRGMMR: IREDELL          ORG: W/NMC23     DATE: 95-10-31
+!
+! ABSTRACT: FIND A GRIB MESSAGE.
+!   FIND IN THE INDEX FILE A REFERENCE TO THE GRIB MESSAGE REQUESTED.
+!   THE GRIB MESSAGE REQUEST SPECIFIES THE NUMBER OF MESSAGES TO SKIP
+!   AND THE UNPACKED PDS AND GDS PARAMETERS.  (A REQUESTED PARAMETER
+!   OF -1 MEANS TO ALLOW ANY VALUE OF THIS PARAMETER TO BE FOUND.)
+!
+! PROGRAM HISTORY LOG:
+!   95-10-31  IREDELL
+!
+! USAGE:    CALL GETGBSS(CBUF,NLEN,NNUM,J,JPDS,JGDS,JENS,
+!    &                   K,KPDS,KGDS,KENS,LSKIP,LGRIB,IRET)
+!   INPUT ARGUMENTS:
+!     CBUF         CHARACTER*1 (NLEN*NNUM) BUFFER CONTAINING INDEX DATA
+!     NLEN         INTEGER LENGTH OF EACH INDEX RECORD IN BYTES
+!     NNUM         INTEGER NUMBER OF INDEX RECORDS
+!     J            INTEGER NUMBER OF MESSAGES TO SKIP
+!                  (=0 TO SEARCH FROM BEGINNING)
+!                  (<0 TO REOPEN INDEX FILE AND SEARCH FROM BEGINNING)
+!     JPDS         INTEGER (25) PDS PARAMETERS FOR WHICH TO SEARCH
+!                  (=-1 FOR WILDCARD)
+!     JGDS         INTEGER (22) GDS PARAMETERS FOR WHICH TO SEARCH
+!                  (ONLY SEARCHED IF JPDS(3)=255)
+!                  (=-1 FOR WILDCARD)
+!     JENS         INTEGER (5) ENSEMBLE PDS PARMS FOR WHICH TO SEARCH
+!                  (ONLY SEARCHED IF JPDS(23)=2)
+!                  (=-1 FOR WILDCARD)
+!   OUTPUT ARGUMENTS:
+!     K            INTEGER MESSAGE NUMBER FOUND
+!                  (CAN BE SAME AS J IN CALLING PROGRAM
+!                  IN ORDER TO FACILITATE MULTIPLE SEARCHES)
+!     KPDS         INTEGER (25) UNPACKED PDS PARAMETERS
+!     KGDS         INTEGER (22) UNPACKED GDS PARAMETERS
+!     KENS         INTEGER (5) UNPACKED ENSEMBLE PDS PARMS
+!     LSKIP        INTEGER NUMBER OF BYTES TO SKIP
+!     LGRIB        INTEGER NUMBER OF BYTES TO READ
+!     IRET         INTEGER RETURN CODE
+!                    0      ALL OK
+!                    1      REQUEST NOT FOUND
+!
+! REMARKS: SUBPROGRAM CAN BE CALLED FROM A MULTIPROCESSING ENVIRONMENT.
+!   THIS SUBPROGRAM IS INTENDED FOR PRIVATE USE BY GETGB ROUTINES ONLY.
+!
+! SUBPROGRAMS CALLED:
+!   GBYTE          UNPACK BYTES
+!   FI632          UNPACK PDS
+!   FI633          UNPACK GDS
+!   PDSEUP         UNPACK PDS EXTENSION
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!   MACHINE:  CRAY, WORKSTATIONS
+!
+!$$$
+   CHARACTER CBUF(NLEN*NNUM)
+   INTEGER JPDS(25),JGDS(22),JENS(5),KPDS(25),KGDS(22),KENS(5)
+   PARAMETER(LPDS=25,LGDS=22)
+   CHARACTER CPDS(80)*1,CGDS(80)*1
+   INTEGER KPTR(16)
+   INTEGER IPDSP(LPDS),JPDSP(LPDS),IGDSP(LGDS),JGDSP(LGDS)
+   INTEGER IENSP(5),JENSP(5)
+   
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   !
+   ! COMPRESS REQUEST LISTS
+   !
+   K=J
+   LSKIP=0
+   LGRIB=0
+   IRET=1
+   !
+   ! COMPRESS PDS REQUEST
+   !
+   LPDSP=0
+   DO I=1,LPDS
+     IF(JPDS(I).NE.-1) THEN
+       LPDSP=LPDSP+1
+       IPDSP(LPDSP)=I
+       JPDSP(LPDSP)=JPDS(I)
+     ENDIF
+   ENDDO
+   !
+   !  COMPRESS GDS REQUEST
+   !
+   LGDSP=0
+   IF(JPDS(3).EQ.255) THEN
+     DO I=1,LGDS
+       IF(JGDS(I).NE.-1) THEN
+         LGDSP=LGDSP+1
+         IGDSP(LGDSP)=I
+         JGDSP(LGDSP)=JGDS(I)
+       ENDIF
+     ENDDO
+   ENDIF
+   !
+   ! COMPRESS ENS REQUEST
+   !
+   LENSP=0
+   IF(JPDS(23).EQ.2) THEN
+     DO I=1,5
+       IF(JENS(I).NE.-1) THEN
+         LENSP=LENSP+1
+         IENSP(LENSP)=I
+         JENSP(LENSP)=JENS(I)
+       ENDIF
+     ENDDO
+   ENDIF
+   
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   ! SEARCH FOR REQUEST
+   !
+   DO WHILE(IRET.NE.0.AND.K.LT.NNUM)
+     K=K+1
+     LT=0
+     !
+     ! SEARCH FOR PDS REQUEST
+     !
+     IF(LPDSP.GT.0) THEN
+       DO I=1,28
+         CPDS(I)=CBUF((K-1)*NLEN+25+I)
+       ENDDO
+       DO I=1,16
+         KPTR(I)=0
+       ENDDO
+       CALL GBYTE(CBUF,KPTR(3),(K-1)*NLEN*8+25*8,3*8)
+       KPDS(18)=1
+       CALL GBYTE(CPDS,KPDS(4),7*8,8)
+       CALL FI632(CPDS,KPTR,KPDS,IRET)
+       !
+       !  change year to 4-digit
+       !
+       kpds(8)=kpds(8)+(kpds(21)-1)*100
+       !
+       DO I=1,LPDSP
+         IP=IPDSP(I)
+         LT=LT+ABS(JPDS(IP)-KPDS(IP))
+       ENDDO
+     ENDIF
+     !
+     ! SEARCH FOR GDS REQUEST
+     !
+     IF(LT.EQ.0.AND.LGDSP.GT.0) THEN
+       DO I=1,42
+         CGDS(I)=CBUF((K-1)*NLEN+53+I)
+       ENDDO
+       DO I=1,16
+         KPTR(I)=0
+       ENDDO
+       CALL FI633(CGDS,KPTR,KGDS,IRET)
+       DO I=1,LGDSP
+         IP=IGDSP(I)
+         LT=LT+ABS(JGDS(IP)-KGDS(IP))
+       ENDDO
+     ENDIF
+     !
+     ! SEARCH FOR ENS REQUEST
+     !
+     IF(LT.EQ.0.AND.LENSP.GT.0) THEN
+       DO I=1,40
+         CPDS(40+I)=CBUF((K-1)*NLEN+112+I)
+       ENDDO
+       CALL PDSEUP(KENS,KPROB,XPROB,KCLUST,KMEMBR,45,CPDS)
+       DO I=1,LENSP
+         IP=IENSP(I)
+         LT=LT+ABS(JENS(IP)-KENS(IP))
+       ENDDO
+     ENDIF
+     !
+     ! RETURN IF REQUEST IS FOUND
+     !
+     IF(LT.EQ.0) THEN
+       CALL GBYTE(CBUF,LSKIP,(K-1)*NLEN*8,4*8)
+       CALL GBYTE(CBUF,LGRIB,(K-1)*NLEN*8+20*8,4*8)
+       IF(LGDSP.EQ.0) THEN
+         DO I=1,42
+           CGDS(I)=CBUF((K-1)*NLEN+53+I)
+         ENDDO
+         DO I=1,16
+           KPTR(I)=0
+         ENDDO
+         CALL FI633(CGDS,KPTR,KGDS,IRET)
+       ENDIF
+       IF(KPDS(23).EQ.2.AND.LENSP.EQ.0) THEN
+         DO I=1,40
+           CPDS(40+I)=CBUF((K-1)*NLEN+112+I)
+         ENDDO
+         CALL PDSEUP(KENS,KPROB,XPROB,KCLUST,KMEMBR,45,CPDS)
+       ENDIF
+       IRET=0
+     ENDIF
+   ENDDO
+   ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+   RETURN
+   END

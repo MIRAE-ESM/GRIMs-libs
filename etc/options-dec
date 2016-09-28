@@ -1,0 +1,37 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP='cpp -C'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+#
+#  Model compiler options
+#
+F77=f90
+FORT_FLAGS="-r8 -i8 -O4 -fpe0 -fast"
+LOAD_FLAGS="-r8 -i8 -O4 -fpe0 -fast"
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=f90
+UTIL_FORT_FLAGS="-r8 -i8 -O4 -fpe0 -fast"
+UTIL_LOAD_FLAGS="-r8 -i8 -O4 -fpe0 -fast"
+#
+W3LIB_F77=f90
+W3LIB_FORT_FLAGS="-fpe2"
+W3LIB_LOAD_FLAGS="-fpe2"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=f90
+BFLIB_FORT_FLAGS=
+BFLIB_LOAD_FLAGS=
+#
+MTNSUBMIT=

@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+if [ $# -eq 0 ] ; then
+	files="pgb flx"
+else
+	files=$1
+fi
+pwd=`pwd`
+for file in $files
+do
+	mon=1
+	while [ $mon -le 12 ] ; do
+		if [ $mon -lt 10 ] ; then
+			mon=0$mon
+		fi
+		ls $file.????$mon.avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_$mon.dat
+		/home/kana/libs/etc/grmean -s grmean_$mon.dat -o $file.$mon.avrg.grib
+		rm grmean_$mon.dat
+		mon=`expr $mon + 1`
+	done
+done
+
+

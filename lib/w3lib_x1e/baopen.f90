@@ -1,0 +1,33 @@
+!-----------------------------------------------------------------------
+   SUBROUTINE BAOPEN(LU,CFN,IRET)
+!$$$  SUBPROGRAM DOCUMENTATION BLOCK
+!
+! SUBPROGRAM: BAOPEN         BYTE-ADDRESSABLE OPEN
+!   PRGMMR: IREDELL          ORG: W/NMC23     DATE: 94-04-01
+!
+! ABSTRACT: OPEN A FILE TO BE ACCESSED BY BAREAD OR BAWRITE
+!
+! PROGRAM HISTORY LOG:
+!   96-10-01  IREDELL     STANDARD F77 VERSION
+!
+! USAGE:    CALL BAOPEN(LU,CFN,IRET)
+!   INPUT ARGUMENTS:
+!     LU           INTEGER UNIT TO OPEN
+!     CFN          CHARACTER (*) FILE NAME TO OPEN
+!   OUTPUT ARGUMENTS:
+!     IRET         INTEGER RETURN CODE (0 IF SUCCESSFUL)
+!
+! ATTRIBUTES:
+!   LANGUAGE: FORTRAN 77
+!
+!$$$
+   CHARACTER                     ::  CFN*(*)
+   CHARACTER(len=11), PARAMETER  ::  CFORM='UNFORMATTED'
+   INTEGER                       ::  LU
+   INTEGER                       ::  IRET
+   character(len=800)            ::  errmsg
+
+   OPEN(LU,FILE=CFN,IOSTAT=IRET,ACCESS='DIRECT',RECL=1,FORM=CFORM,             &
+                             status='unknown',IOMSG=errmsg)
+   if (Iret /= 0) print*,'error in baopen:',trim(errmsg)
+   END

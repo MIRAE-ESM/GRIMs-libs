@@ -1,0 +1,40 @@
+SHELL=/bin/sh
+AR=bld
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP='cpp -C'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options
+#
+F77=ftn
+FORT_FLAGS="-O2 -sdefault64"
+LOAD_FLAGS="-O2"
+EXTRA_LIBS=
+#
+#  UTIL
+#
+UTIL_F77=ftn
+UTIL_FORT_FLAGS="-O2 -sdefault64"
+UTIL_LOAD_FLAGS="-O2"
+#
+W3LIB_F77=ftn
+W3LIB_FORT_FLAGS="-O2 -sdefault64"
+W3LIB_LOAD_FLAGS=
+#
+FFT99M=
+#
+BFLIB_F77=ftn
+BFLIB_FORT_FLAGS="-O2 -sdefault64"
+BFLIB_LOAD_FLAGS=
+#
+MTNSUBMIT=

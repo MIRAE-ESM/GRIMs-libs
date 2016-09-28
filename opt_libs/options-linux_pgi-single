@@ -1,0 +1,44 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP='cpp -traditional-cpp'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options (except fcst related)
+#
+F77=pgf90
+F77_FCST=pgf90
+INLINE="share.il"
+FC_FLAGS="-r8 -fastsse -DLINUX -byteswapio -module ../include -mcmodel medium"
+EXTRAC_FLAG="${FC_FLAGS} -Mextract=size:20"
+EXTRA_FORT_FLAGS="-Minline=../share/fpvs.il,../share/fpvs0.il,../share/fpvsx.il,../share/fpvsx0.il -Minfo=inline"
+FORT_FLAGS="${FC_FLAGS}"
+LOAD_FLAGS="${FC_FLAGS}"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=pgf90
+UTIL_FORT_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+UTIL_LOAD_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+#
+W3LIB_F77=pgf90
+W3LIB_FORT_FLAGS="-DLINUX -byteswapio -mcmodel medium"
+W3LIB_LOAD_FLAGS="-DLINUX -byteswapio -mcmodel medium"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=pgf90
+BFLIB_FORT_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+BFLIB_LOAD_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+#

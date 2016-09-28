@@ -1,0 +1,32 @@
+currdir=`pwd`
+if [ x$1 = x ] 
+then
+  echo 'print out forecast hour of a file'   
+  echo 'fhour.s a1'
+  echo 'a1 .. filename'
+  exit
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+if [ @MACHINE@ = cray -o @MACHINE@ = t90 -o @MACHINE@ = t3e -o @MACHINE@ = x1e ]  ; then
+  FILENV=fileenv.$$; export FILENV
+  assign -R
+fi
+echo $1 >dat.$$
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+fhour=`@RUNENV@ $ETC_DIR/date.x <dat.$$ | awk '{print $5}'`
+rm dat.$$
+fhour=`expr $fhour`
+if [ $fhour -lt 10 ] ; then
+	fhour=0$fhour
+fi
+echo $fhour
+/bin/rm -f $FILENV >/dev/null

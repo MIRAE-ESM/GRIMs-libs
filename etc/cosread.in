@@ -1,0 +1,58 @@
+if [ $# -ne 2 ] ; then
+	echo 'Usage: cosread infile outfile'
+  echo "`date` $0: Usage error." >>ERROR.out
+	exit 8
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+in=$1
+if [ ! -s $in ] ; then
+	echo "$in:  No such file"
+	echo "`date` $0: $in.  No such file." >>ERROR.out
+	exit 8
+fi
+out=$2
+#
+ftype=sig
+echo $fname | grep sfc >/dev/null
+if [ $? -eq 0 ] ; then
+	ftype=sfc
+fi
+#
+if [ @MACHINE@ = x1e ] ; then
+        . /opt/modules/modules/init/sh
+        module load open pbs PrgEnv
+        FILENV=filenv.$$
+        export FILENV
+        assign -R
+else
+        rm -f @FTNID@[0-9]* 2>/dev/null
+fi
+
+@FTASS@ $in @FTNID@11
+@FTASS@ $out @FTNID@51
+
+echo ' &namfl' >naml$$.data
+echo " fname='$in'" >>naml$$.data
+echo " ftype='$ftype'" >>naml$$.data
+echo ' &END' >>naml$$.data
+#
+if [ @MACHINE@ = cray -o @MACHINE@ = t90 -o @MACHINE@ = t3e ] ; then
+  assign -R
+fi
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+@RUNENV@ $ETC_DIR/cosread.x <naml$$.data 2>stderr$$.cosread
+if [ $? -ne 0 ] ; then
+	echo " $0: Execution failed"
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+rm naml$$.data stderr$$.cosread

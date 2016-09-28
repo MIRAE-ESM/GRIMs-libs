@@ -1,0 +1,25 @@
+#!/bin/sh
+#
+if [ $# -eq 0 ] ; then
+	files="pgb flx"
+else
+	files=$1
+fi
+pwd=`pwd`
+for file in $files
+do
+	ls $file.????12.avrg.grib $file.????0[1-2].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_djf.dat
+	/home/kana/libs/etc/grmean -s grmean_djf.dat -o $file.djf.avrg.grib
+	ls $file.????0[3-5].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_mam.dat
+	/home/kana/libs/etc/grmean -s grmean_mam.dat -o $file.mam.avrg.grib
+	ls $file.????0[6-8].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_jja.dat
+	/home/kana/libs/etc/grmean -s grmean_jja.dat -o $file.jja.avrg.grib
+	ls $file.????09.avrg.grib $file.????1[0-1].avrg.grib | \
+			sed "s?^?$pwd/?g" >grmean_son.dat
+	/home/kana/libs/etc/grmean -s grmean_son.dat -o $file.son.avrg.grib
+done
+
+

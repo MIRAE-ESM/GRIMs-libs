@@ -1,0 +1,27 @@
+#
+MACHINE = @MACHINE@
+SHELL = @SHELL@
+CP = @CP@
+CD = @CD@
+RM = @RM@
+MAKE = @MAKE@
+
+ETC_DIR = @ETC_DIR@
+
+all : 
+	${CD} util_${MACHINE} ; ${MAKE} || exit 8
+	${CD} utils ; ${MAKE} || exit 8
+
+gdas :
+	${CD} utils_gdas ; ${MAKE} || exit 8
+
+mutils :
+	${CD} util_${MACHINE} ; ${MAKE} || exit 8
+
+utils : 
+	${CD} utils ; ${MAKE} || exit 8
+
+clean :  
+	${CD} util_${MACHINE} ; ${MAKE} clean
+	${CD} utils ; ${MAKE} clean
+	- ${RM} -rf rii_files

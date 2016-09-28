@@ -1,0 +1,41 @@
+SHELL=/bin/sh
+AR=esar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=esc++
+CPP=/usr/lib/cpp
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options
+#
+F77=esf90
+FORT_FLAGS='-Cvopt -ftrace -R2 -float0 -f3 -ew -I./MODS -lasl64 -P stack -pi -Wf"-M nozdiv noflovf noinv -L source -pvctl fullmsg vwork=stack noassume loopcnt=10000000"'
+OCN_FLAGS='-Cvopt -ftrace -R2 -float0 -f3 -ew -I./MODS -lasl64 -P stack -pi -Wf"-M nozdiv noflovf noinv -L source -pvctl fullmsg vwork=stack noassume loopcnt=10000000"'
+LOAD_FLAGS='-Cvopt -ftrace -R2 -float0 -f3 -ew -I./MODS -lasl64 -P stack -pi -Wf"-M nozdiv noflovf noinv -L source -pvctl fullmsg vwork=stack noassume loopcnt=10000000"'
+EXTRA_LIBS="-lasl64"
+#
+#  UTIL
+#
+UTIL_F77=esf90
+UTIL_FORT_FLAGS='-Cvopt -ftrace -R2 -float0 -f3 -ew -I./MODS -lasl64 -P stack -pi -Wf"-M nozdiv noflovf noinv -L source -pvctl fullmsg vwork=stack noassume loopcnt=10000000"'
+UTIL_LOAD_FLAGS='-Cvopt -ftrace -R2 -float0 -f3 -ew -I./MODS -lasl64 -P stack -pi -Wf"-M nozdiv noflovf noinv -L source -pvctl fullmsg vwork=stack noassume loopcnt=10000000"'
+#
+W3LIB_F77=esf90
+W3LIB_FORT_FLAGS='-Cvopt -ftrace -R2 -Wf"-L source -pvctl fullmsg vwork=stack noassume" -f3 -ew'
+W3LIB_LOAD_FLAGS='-Cvopt -ftrace -R2 -Wf"-L source -pvctl fullmsg vwork=stack noassume" -f3 -ew'
+#
+FFT99M=
+#
+BFLIB_F77=esf90
+BFLIB_FORT_FLAGS=
+BFLIB_LOAD_FLAGS=
+#
+MTNSUBMIT=

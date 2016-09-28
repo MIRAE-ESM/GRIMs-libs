@@ -1,0 +1,45 @@
+SHELL=/bin/sh
+AR="ar -X 32_64"
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC="cc -q64"
+CPP=/usr/ccs/lib/cpp
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model(other than forecast code) compiler options
+#
+MODUL="-qmoddir=../include -I../include"
+F77=xlf90
+F77_FCST=mpxlf90
+FORT_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -qfree=f90 -qsuffix=f=f90 ${MODUL} -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+OCN_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -qfree=f90 -qsuffix=f=f90 ${MODUL} -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+LOAD_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=xlf90
+UTIL_FORT_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -qfree=f90 -qsuffix=f=f90 ${MODUL} -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+UTIL_LOAD_FLAGS="-O3 -qrealsize=8 -qnosave -qmaxmem=-1 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+#
+W3LIB_F77=xlf90
+W3LIB_FORT_FLAGS="-O3 -qsuffix=f=f90 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+W3LIB_LOAD_FLAGS="-O3 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=xlf90
+BFLIB_FORT_FLAGS="-O3 -qsuffix=f=f90 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+BFLIB_LOAD_FLAGS="-O3 -qarch=pwr6 -qtune=pwr6 -qstrict -q64"
+#
+MTNSUBMIT=
+MPISUBMIT=""
+BATCHJOB="llsubmit"

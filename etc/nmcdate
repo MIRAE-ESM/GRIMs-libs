@@ -1,0 +1,48 @@
+set -x
+#
+# $1=2-digit-year or 4-digit-year
+# $2=1-or-2-digit-month
+# $3=1-or-2digit-day
+# $4=1-or-2digit-hour
+#
+if [ $# -ne 4 ] ; then
+	echo $0:yy mm dd hh
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+yr=`expr $1 + 0`
+if [ "$yr" -gt 999 ] ; then
+	yr=`echo $yr | cut -c3-4`
+elif [ $yr -le 999 -a $yr -gt 99 ] ; then
+	echo 'Year must be two or four digit'
+	echo "`date` $0: Year must be two or four digit." >>ERROR.out
+	exit 8
+elif [ "$yr" -lt 10 ] ; then
+	yr=0$yr
+fi
+mo=`expr $2 + 0`
+if [ "$mo" -gt 12 ] ; then
+	echo 'Illegal month'
+	echo "`date` $0: Illegal month." >>ERROR.out
+	exit 8
+elif [ "$mo" -lt 10 ] ; then
+	mo=0$mo
+fi
+dy=`expr $3 + 0`
+if [ "$dy" -gt 31 ] ; then
+	echo 'Illegal day'
+	echo "`date` $0: Illegal day." >>ERROR.out
+	exit 8
+elif [ "$dy" -lt 10 ] ; then
+	dy=0$dy
+fi
+hr=`expr $4 + 0`
+if [ "$hr" -gt 24 ] ; then
+	echo 'Illegal hour'
+	echo "`date` $0: Illegal hour." >>ERROR.out
+	exit 8
+elif [ "$hr" -lt 10 ] ; then
+	hr=0$hr
+fi
+echo "date  c2$yr$mo$dy$hr    washington  "
+

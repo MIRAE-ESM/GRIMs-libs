@@ -1,0 +1,63 @@
+#!/bin/sh
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+
+XLFRTEOPTS="namelist=old"
+export XLFRTEOPTS
+
+if [ @MACHINE@ = es ] ; then
+
+echo " &namset " >inp
+echo " lreal4=.$1., " >>inp
+echo " jcap=$2, " >>inp
+echo " levs=$3, " >>inp
+echo " lonf=$4, " >>inp
+echo " latg=$5, " >>inp
+echo " npes=$6, " >>inp
+if [ check$7 != check ]; then echo " ncol=$7, " >>inp; fi
+if [ check$8 != check ]; then echo " nrow=$8, " >>inp; fi
+echo " &end " >>inp
+
+dirhere=`pwd`
+cat >~/mpiset_gb.sh <<EOF
+#!/bin/sh
+cd $dirhere
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+@RUNENV@ $ETC_DIR/mpiset.x <inp
+EOF
+	chmod 755 ~/mpiset_gb.sh
+	rexec gbnode000 -l @USERNAME@ ./mpiset_gb.sh
+
+if [ $? -ne 0 ] ; then
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+rm inp
+
+else
+
+echo " &namset " >inp.$$
+echo " lreal4=.$1., " >>inp.$$
+echo " jcap=$2, " >>inp.$$
+echo " levs=$3, " >>inp.$$
+echo " lonf=$4, " >>inp.$$
+echo " latg=$5, " >>inp.$$
+echo " npes=$6, " >>inp.$$
+if [ check$7 != check ]; then echo " ncol=$7, " >>inp.$$; fi
+if [ check$8 != check ]; then echo " nrow=$8, " >>inp.$$; fi
+echo " &end " >>inp.$$
+
+./mpiset.x <inp.$$
+if [ $? -ne 0 ] ; then
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+rm inp.$$
+
+fi

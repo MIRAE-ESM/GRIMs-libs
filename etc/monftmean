@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+yyyy=$1
+fhinc=$2
+mon=$3
+#
+if [ $# -ne 3 ] ; then
+	echo usage: $0 yyyy fhinc mon
+	exit 
+fi
+file=r_pgb
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETCDIR=`pwd`
+echo "ETCDIR=$ETCDIR"
+export ETCDIR
+cd $currdir
+#
+XLFRTEOPTS="namelist=old"
+export XLFRTEOPTS
+#
+#  This script computes monthly mean from $file.ft%f2 files
+#
+day=31
+if [ $mon = 04 -o $mon = 06 -o $mon = 09 -o $mon = 11 ] ; then
+	day=30
+fi
+n=`expr $yyyy \/ 4`
+n=`expr $n \* 4`
+if [ $n -eq $yyyy ] ; then
+	leap=yes
+else
+	leap=no
+fi
+if [ $mon = 02 ] ; then
+	if [ $leap = yes ] ; then
+		day=29
+	else
+		day=28
+	fi
+fi
+hour=`expr 24 - $fhinc`
+fhs=`$ETCDIR/inchour $yyyy 01 01 00 $yyyy $mon 01 00 | sed 's/ //g'`
+fhe=`$ETCDIR/inchour $yyyy 01 01 00 $yyyy $mon $day $hour | sed 's/ //g'`
+fh=$fhs
+rm grmean.$yyyy$mon.list 2>/dev/null
+f0=
+f1=
+fx=
+while [ $fh -le $fhe ] ; do
+	ffh=$fh
+	if [ $ffh -lt 10 ] ; then
+		ffh=0$fh
+	fi
+	if [ -s $file.ft$ffh ] ; then
+		echo $file.ft$ffh >>grmean.$yyyy$mon.list
+	else
+		if [ -z "$f0" -a ! -s $file.ft$ffh ] ; then
+			f0=$file.ft$ffh
+			fx=x
+		elif [ ! -z "$f0" -a ! -s $file.ft$ffh ] ; then
+			f1=$file.ft$ffh
+			fx=x
+		else
+			if [ ! -z "$f0" ] ; then
+				if [ -z "$f1" ] ; then
+					echo $f0 missing
+				else
+					echo $f0 - $f1  missing
+				fi
+			fi
+			f0=
+			f1=
+    fi
+	fi
+	if [ $fh -eq $fhe ] ; then
+		if [ ! -z "$f0" ] ; then
+			if [ -z "$f1" ] ; then
+				echo $f0 missing
+			else
+				echo $f0 - $f1  missing
+			fi
+			fx=x
+		fi
+  fi
+	fh=`expr $fh + $fhinc`
+done
+if [ "$fx" = x ] ; then
+	exit 8
+fi
+$ETCDIR/grmean -s grmean.$yyyy$mon.list -o $file.$yyyy$mon.avrg.grib

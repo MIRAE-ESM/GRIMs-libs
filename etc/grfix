@@ -1,0 +1,294 @@
+#!/bin/sh
+if [ $# -eq 0 ] ; then
+	echo 'Usage: grfix [-o file] grib-filename'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+#
+#  -o file    ... output average file name
+#
+set -- `getopt o: $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+  case $1 in
+    -o) oarg=$2 ;;
+  esac
+  shift
+done
+shift
+#
+if [ -z "$USER" ] ; then
+  user=$LOGNAME
+else
+  user=$USER
+fi
+echo user=$user
+#
+if [ $err -ne 0 ] ; then
+	echo 'Usage: grfix [-o outfile] grib-filename'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+if [ -z "$iarg" ] ; then
+	iarg=0
+fi
+if [ -n "$flag" -a "$iarg" -ne 0 ] ; then
+	iarg=-$iarg
+fi
+#
+if [ -n "$flag" -a -n "$farg" ] ; then
+	ifts=`echo $farg | cut -d':' -f1`
+	ifte=`echo $farg | cut -d':' -f2`
+else
+	ifts=-999
+	ifte=-999
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir 2>/dev/null
+GRMEANDIR=`pwd`
+echo "GRMEANDIR=$GRMEANDIR"
+export GRMEANDIR
+cd $currdir
+#
+tmp=/nfsuser/g03/wx51mk/tmp
+if [ -n "$TMPDIR" ] ; then
+	tmp=$TMPDIR
+fi
+#
+mapsorc=$1
+if [ -n "$sarg" -a \( -n "$mapsorc" -o $iarg != 0 -o -n "$farg" \) ] ; then
+	echo "Invalid argument"
+	echo "`date` $0: Invalid argument." >>ERROR.out
+	exit 8
+fi
+#
+temp_outfile="./fixed.grib"
+#
+if [ -n "$mapsorc" ] ; then
+	hmaps=`echo $mapsorc | cut -c 1`
+	if [ "$hmaps" != '/' ] ; then
+		mapsorc=$currdir/$mapsorc
+	fi
+	#
+	#  Always in /tmp
+	#
+	mapsx=`echo $mapsorc | sed 's%/[^/]*$%%g' | sed 's%^.*/%%g'`
+	mkdir -p $tmp/$user/$mapsx/$$ 2>/dev/null
+	cd $tmp/$user/$mapsx/$$
+	rm namlpre.[0-9] namlpre.tmp namlpre.data 2>/dev/null
+	#
+	n=0
+	for filenam in $mapsorc
+	do
+	#
+		DELIM=
+	# for ii in '%' '#' '~' '+' '@'
+		for ii in '%' '#' '~' '@'
+		do
+			echo $filenam | grep "$ii" >/dev/null
+			rc=$?
+			if [ $rc -eq 0 ] ; then
+				DELIM="$ii"
+				break
+			fi
+		done
+		if [ -z "$DELIM" ] ; then
+			DELIM='%'
+		fi
+		export DELIM
+	#
+		hmaps=`echo $filenam | cut -c 1`
+		if [ "$hmaps" != '/' ] ; then
+			filenam=$curdir/$filenam
+		fi
+		echo $filenam | grep "$DELIM" >/dev/null
+		if [ $? -ne 0 -a ! -s  $filenam ] ; then
+			echo " Error!!!  $filenam empty."
+			echo "`date` $0: $filenam empty." >>ERROR.out
+			cd $tmp/$user
+			rm -r $tmp/$user/$mapsx/$$
+			exit 8
+		fi
+		n=`expr $n + 1`
+		eval filenam$n=$filenam
+		shift
+	done
+	nfile=$n
+	#
+	echo ' '
+	fexist=no
+	#
+	cnt=0
+	ndln=1
+	for argus in $mapsorc
+	do
+		cnt=` expr $cnt + 1 `
+		ndln=`expr $ndln + 1`
+		fngrib=$argus
+		echo "$fngrib" >>namlpre.1
+	#
+	#  Find file names of the grads wild card format
+	#
+		filenx="`echo "$fngrib" | sed "s/${DELIM}[ymdh]1/[0-9]/g"`"
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]2/[0-9][0-9]/g"`
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]3/[0-9][0-9][0-9]/g"`
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]4/[0-9][0-9][0-9][0-9]/g"`
+		filen1=`echo "$filenx" | sed "s/${DELIM}f1/[0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f2/[0-9][0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f3/[0-9][0-9][0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f4/[0-9][0-9][0-9][0-9]/g"`
+		filen2=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9]/g"`
+		filen2=`echo "$filen2" | sed "s/${DELIM}f2/[0-9][0-9][0-9]/g"`
+		filen2=`echo "$filen2" | sed "s/${DELIM}f3/[0-9][0-9][0-9][0-9]/g"`
+		filen3=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9]/g"`
+		filen3=`echo "$filen3" | sed "s/${DELIM}f2/[0-9][0-9][0-9][0-9]/g"`
+		filen4=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9][0-9]/g"`
+	#
+		rm namlpre.tmp 2>/dev/null
+		ccnt=0
+		cccc=0
+		nf=1
+		echo ' '
+		echo ' '
+		echo ' Searching file(s) of the form,' " $fngrib"
+		echo ' '
+		while [ $nf -le 4 ] ; do
+			filenm=`eval echo '\$filen'$nf`
+			if [ $nf -gt 1 ] ; then
+				nff=1
+				while [ $nff -le $nf ] ; do
+					if [ $nff -eq $nf ] ; then
+						nff=`expr $nff + 1`
+						continue
+					fi
+					filenx=`eval echo '\$filen'$nff`
+					if [ "$filenm" = "$filenx" ] ; then
+						nf=`expr $nf + 1`
+						continue 2
+					fi
+					nff=`expr $nff + 1`
+				done
+			fi
+	#
+			if [ "$filenm" != $fngrib ] ; then
+	#
+				cccx=0
+				for filen in $filenm
+				do
+					cccc=`expr $cccc + 1`
+					cccx=`expr $cccx + 1`
+					if [ -f $filen ] ; then
+	#					echo " $filen"
+						if [ -s $filen ] ; then
+							echo $filen >>namlpre.tmp
+							ccnt=` expr $ccnt + 1 `
+							fexist=yes
+						else
+							echo " File $filen empty.  Skipped"
+							shift
+						fi
+					else
+						if [ $nf -eq 1 ] ; then
+							echo " Caution! File of the %f? type with matching ? not found."
+						fi
+					fi
+				done
+			else
+				if [ $nf -eq 1 ] ; then
+					echo " Searching file, $fngrib"
+				fi
+				if [ -s $filenm ] ; then
+	# 			echo " $filenm"
+					fexist=yes
+					ccnt=` expr $ccnt + 1 `
+					echo $filenm >>namlpre.tmp
+				else
+					if [ $nf -eq 1 ] ; then
+						echo " File $filenm empty.  Skipped"
+					fi
+				fi
+			fi
+			nf=`expr $nf + 1`
+		done
+		echo " Number of Files found for this type=$ccnt"
+	done
+	#
+	if [ $fexist = no ] ; then
+		echo " All files are empty."
+		echo "`date` $0: All files are empty." >>ERROR.out
+		cd $tmp/$user
+		rm -r $tmp/$user/$mapsx/$$
+		exit 8
+	fi
+	#
+	echo "$GRMEANDIR/grib1.kpds5.vsn22" >namlpre.data
+	echo "$GRMEANDIR/grib1.kpds6.vsn21" >>namlpre.data
+	echo "$iarg" >>namlpre.data
+	echo "$temp_outfile" >>namlpre.data
+	nlines=`wc -l namlpre.tmp | awk '{print $1}'`
+	echo $nlines >>namlpre.data
+	for file in `cat namlpre.tmp`
+	do
+		echo $file >>namlpre.data
+	done
+	echo $ifts >>namlpre.data
+	echo $ifte >>namlpre.data
+	#
+else  #  file name list given by a file
+	#
+	#  Always in /tmp
+	#
+	listfile=$sarg
+	mapsx=`echo $mapsorc | sed 's%/[^/]*$%%g' | sed 's%^.*/%%g'`
+	mkdir -p $tmp/$user/$mapsx/$$ 2>/dev/null
+	cd $tmp/$user/$mapsx/$$
+	hmaps=`echo $listfile | cut -c 1`
+	if [ "$hmaps" != '/' ] ; then
+		listfile=$currdir/$listfile
+	fi
+	rm namlpre.[0-9] namlpre.tmp namlpre.data 2>/dev/null
+	echo "$GRMEANDIR/grib1.kpds5.vsn22" >namlpre.data
+	echo "$GRMEANDIR/grib1.kpds6.vsn21" >>namlpre.data
+	echo "0" >>namlpre.data
+	echo "$temp_outfile" >>namlpre.data
+	nlines=`wc -l $listfile | awk '{print $1}'`
+	echo $nlines >>namlpre.data
+	cat $listfile >>namlpre.data
+	echo '-999' >>namlpre.data
+	echo '-999' >>namlpre.data
+fi
+#
+$GRMEANDIR/grfix.x <namlpre.data
+if [ $? -ne 0 ] ; then
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+#
+set -x
+ls -l $temp_outfile
+#
+head=
+if [ -z "$oarg" ] ; then
+  head=$currdir
+else
+	s=`echo $oarg | cut -c 1`
+	if [ "$s" != '/' ] ; then
+		head=$currdir
+	fi
+fi
+echo mv $temp_outfile $head/$oarg
+mv $temp_outfile $head/$oarg
+if [ $? -ne 0 ] ; then
+	echo grfix move failed
+	echo "`date` $0: File mv failed." >>ERROR.out
+	exit 8
+fi
+mv grfix.out $currdir/.
+#
+rm namlpre.* 2>/dev/null
+cd $tmp/$user/$mapsx
+rm -rf $tmp/$user/$mapsx
+exit 0

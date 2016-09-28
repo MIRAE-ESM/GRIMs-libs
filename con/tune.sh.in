@@ -1,0 +1,95 @@
+#!/bin/sh
+
+set -a
+set -x
+
+cat >tune.f90 <<'EOF'
+      parameter(nbin=100,im=2,jm=4,km=3,lm=2)
+      dimension rhfd(nbin*im*jm*km*lm)
+      dimension rfhffd(nbin*im*jm*km*lm)
+      dimension kpts(im*jm*km*lm)
+      dimension icdays(15),idate(4)
+      read(10,100) nbdayi,icdays
+      write(50) nbdayi,icdays
+      print *,'nbdayi=',nbdayi,' icdays=',icdays
+      read(10,200) fhour,idate
+      print *,'fhour=',fhour,' idate',idate
+      write(50) fhour,idate
+      do n=1,nbdayi
+!
+        print *,'n=',n
+        read(10,300) rhfd
+!       print *,'rhfd read'
+        write(50) rhfd
+!
+        read(10,300) rfhffd
+!       print *,'rfhffd read'
+        write(50) rfhffd
+!
+        read(10,400) kpts
+!       print *,'kprs read'
+        write(50) kpts
+      enddo
+100   format(8i10)
+200   format(f13.6,4i4)
+300   format(6e13.6)
+400   format(6i13)
+      stop
+      end
+EOF
+
+echo "@UTIL_F77@ @FORT_FLAGS@ -o tune.x tune.f90"
+@UTIL_F77@ @FORT_FLAGS@ -c tune.f90 || exit 8
+@UTIL_F77@ @LOAD_FLAGS@ -o tune.x tune.o || exit 8
+
+for tune in tune1.asc tune.t42l18.amip.ewmrg.asc tune.t62l28.reanl.ewmrg.asc
+do
+	INPFILE=$tune
+	OUTFILE=@CON_DIR@/`echo $tune | sed 's/\.[^\.]*$//g'`
+	echo ' '
+	echo "Converting cloud tuning file: $tune"
+	if [ -s $tune ] ; then
+		rm $tune
+	fi
+	if [ -s $tune.Z ] ; then
+		gunzip -c $tune.Z > $tune || exit 8
+	fi
+	if [ -s $tune.gz ] ; then
+		gunzip -c $tune.gz > $tune || exit 8
+	fi
+
+if [ @MACHINE@ = x1e ] ; then
+        . /opt/modules/modules/init/sh
+        module load open pbs PrgEnv
+        FILENV=filenv.$$
+        export FILENV
+        assign -R
+else
+        rm -f @FTNID@[0-9]* 2>/dev/null
+fi
+
+        @FTASS@ $INPFILE   @FTNID@10
+        @FTASS@ $OUTFILE   @FTNID@50
+
+	if [ @MACHINE@ = es ] ; then
+		dirhere=`pwd`
+		cat >~/tune_gb.sh <<EOF
+		#!/bin/sh
+		cd $dirhere
+		@RUNENV@ ./tune.x || exit 8
+EOF
+		chmod 755 ~/tune_gb.sh
+		rexec gbnode000 -l @USERNAME@ ./tune_gb.sh
+	else
+		@RUNENV@ ./tune.x  || exit 8
+	fi
+	#compress $tune
+	#if [ $? -ne 0 ] ; then
+	#	gzip $tune || exit 8
+	#fi
+done
+#
+rm -f tune.o tune.x tune.f90 2>/dev/null
+rm -f @FTNID@[0-9]* 2>/dev/null 
+rm -f $FILENV
+exit 0

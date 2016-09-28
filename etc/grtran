@@ -1,0 +1,252 @@
+
+if [ $# -eq 0 ] ; then
+	echo 'Usage: grtran [-l] [-S listfile] grib-filename-in-%-format'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+#
+#  -l  ... creates variable name list file (grtran.list)
+#  -S file ... file containing a list of variables to be extracted
+#
+set -- `getopt S:lH $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+  case $1 in
+    -H) Hflag=$1 ;;
+    -S) Sarg=$2 ;;
+    -l) lflag=$1 ;;
+  esac
+  shift
+done
+shift
+#
+if [ -z "$USER" ] ; then
+  user=$LOGNAME
+else
+  user=$USER
+fi
+#
+if [ $err -ne 0 ] ; then
+	echo 'Usage: grtran [-l] [-H] [-S listfile] grib-filename-in-%-format'
+	echo "`date` $0: Wrong usage." >>ERROR.out
+	exit 8
+fi
+if [ -n "$Sarg" ] ; then
+	if [ ! -s $Sarg ] ; then
+		echo "List file $Sarg empty"
+		echo "`date` $0: List file $Sarg empty." >>ERROR.out
+		exit 8
+	fi
+fi
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+GRTRANDIR=`pwd`
+echo "GRTRANDIR=$GRTRANDIR"
+export GRTRANDIR
+cd $currdir
+#
+pwd=`pwd`
+tmp=tmp
+#
+mapsorc=$1
+hmaps=`echo $mapsorc | cut -c 1`
+if [ "$hmaps" != '/' ] ; then
+  mapsorc=$pwd/$mapsorc
+fi
+#
+#  computation will be done in /tmp
+#
+mapsx=`echo $mapsorc | sed 's%/[^/]*$%%g' | sed 's%^.*/%%g'`
+mkdir -p /$tmp/$user/$mapsx/$$ 2>/dev/null
+cd /$tmp/$user/$mapsx/$$
+#
+rm namlpre.[0-9] namlpre.tmp namlpre.data 2>/dev/null
+#
+n=0
+for filenam in $mapsorc
+do
+#
+  DELIM=
+# for ii in '%' '#' '~' '+' '@'
+  for ii in '%' '#' '~' '@'
+  do
+    echo $filenam | grep "$ii" >/dev/null
+    if [ $? -eq 0 ] ; then
+      DELIM="$ii"
+      break
+    fi
+  done
+  if [ -z "$DELIM" ] ; then
+    DELIM='%'
+  fi
+  export DELIM
+#
+  hmaps=`echo $filenam | cut -c 1`
+  if [ "$hmaps" != '/' ] ; then
+    filenam=$pwd/$filenam
+  fi
+  echo $filenam | grep "$DELIM" >/dev/null
+  if [ $? -ne 0 -a ! -s  $filenam ] ; then
+    echo " Error!!! $filenam empty."
+		echo "`date` $0: $filenam empty." >>ERROR.out
+    exit 8
+  fi
+  n=`expr $n + 1`
+  eval filenam$n=$filenam
+  shift
+done
+nfile=$n
+#
+echo ' '
+fexist=no
+#
+cnt=0
+ndln=1
+for argus in $mapsorc
+do
+	cnt=` expr $cnt + 1 `
+  ndln=`expr $ndln + 1`
+	fngrib=$argus
+	echo "$fngrib" >>namlpre.1
+#
+#  Find file names of the grads wild card format
+#
+  filenx="`echo "$fngrib" | sed "s/${DELIM}[ymdh]1/[0-9]/g"`"
+  filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]2/[0-9][0-9]/g"`
+  filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]3/[0-9][0-9][0-9]/g"`
+  filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]4/[0-9][0-9][0-9][0-9]/g"`
+  filen1=`echo "$filenx" | sed "s/${DELIM}f1/[0-9]/g"`
+  filen1=`echo "$filen1" | sed "s/${DELIM}f2/[0-9][0-9]/g"`
+  filen1=`echo "$filen1" | sed "s/${DELIM}f3/[0-9][0-9][0-9]/g"`
+  filen1=`echo "$filen1" | sed "s/${DELIM}f4/[0-9][0-9][0-9][0-9]/g"`
+  filen2=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9]/g"`
+  filen2=`echo "$filen2" | sed "s/${DELIM}f2/[0-9][0-9][0-9]/g"`
+  filen2=`echo "$filen2" | sed "s/${DELIM}f3/[0-9][0-9][0-9][0-9]/g"`
+  filen3=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9]/g"`
+  filen3=`echo "$filen3" | sed "s/${DELIM}f2/[0-9][0-9][0-9][0-9]/g"`
+  filen4=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9][0-9]/g"`
+
+#
+	rm namlpre.tmp 2>/dev/null
+	ccnt=0
+	cccc=0
+	nf=1
+	echo ' '
+	echo ' '
+	echo ' Searching file(s) of the form,' " $fngrib"
+	echo ' '
+	while [ $nf -le 4 ] ; do
+		filenm=`eval echo '\$filen'$nf`
+		if [ $nf -gt 1 ] ; then
+			nff=1
+			while [ $nff -le $nf ] ; do
+				if [ $nff -eq $nf ] ; then
+					nff=`expr $nff + 1`
+					continue
+				fi
+				filenx=`eval echo '\$filen'$nff`
+				if [ "$filenm" = "$filenx" ] ; then
+					nf=`expr $nf + 1`
+					continue 2
+				fi
+				nff=`expr $nff + 1`
+			done
+		fi
+#
+		if [ "$filenm" != $fngrib ] ; then
+#
+			cccx=0
+			for filen in $filenm
+			do
+				cccc=`expr $cccc + 1`
+				cccx=`expr $cccx + 1`
+				if [ -f $filen ] ; then
+					echo " $filen"
+					if [ -s $filen ] ; then
+						echo $filen >>namlpre.tmp
+						ccnt=` expr $ccnt + 1 `
+						fexist=yes
+					else
+						echo " File $filen empty.  Skipped"
+						shift
+					fi
+				else
+					if [ $nf -eq 1 ] ; then
+						echo " Caution! File of the %f? type with matching ? not found."
+					fi
+				fi
+			done
+		else
+			if [ $nf -eq 1 ] ; then
+				echo " Searching file, $fngrib"
+			fi
+			if [ -s $filenm ] ; then
+  			echo " $filenm"
+				fexist=yes
+				ccnt=` expr $ccnt + 1 `
+				echo $filenm >>namlpre.tmp
+			else
+				if [ $nf -eq 1 ] ; then
+					echo " File $filenm empty.  Skipped"
+				fi
+			fi
+		fi
+		nf=`expr $nf + 1`
+	done
+	if [ $ccnt -ge 0 ] ; then
+		echo $ccnt >>namlpre.2
+		if [ -s namlpre.tmp ] ; then
+			cat namlpre.tmp >>namlpre.2
+		fi
+	fi
+	echo " Number of Files found for this type=$ccnt"
+done
+#
+if [ $fexist = no ] ; then
+	echo " All files are empty."
+	echo "`date` $0: All files are empty." >>ERROR.out
+	exit 8
+fi
+#
+echo $cnt >>namlpre.data
+cat namlpre.1 >>namlpre.data
+echo ' '
+#echo ' &NAMPRE' >>namlpre.data
+echo ' &NAMPRE' >namlpre.data
+echo " FNKPDS5='$GRTRANDIR/grib1.kpds5.vsn21'" >>namlpre.data
+echo " FNKPDS6='$GRTRANDIR/grib1.kpds6.vsn21'" >>namlpre.data
+if [ -n "$Sarg" ] ; then
+	xx=`echo $Sarg | cut -c 1`
+	if [ "$xx" != '/' ] ; then
+		echo " FNILIST='$pwd/$Sarg'" >>namlpre.data
+	else
+		echo " FNILIST='$Sarg'" >>namlpre.data
+	fi
+fi
+if [ -n "$lflag" ] ; then
+	echo " LISTONLY=.TRUE." >>namlpre.data
+fi
+echo ' &END' >>namlpre.data
+cat namlpre.2 >>namlpre.data
+#
+echo '\n\n'
+$GRTRANDIR/grtran.x 2>stderr$$.grtran
+cc=$?
+if [ $cc -ne 0 ] ; then
+	echo ' Execution failed'
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi
+#
+if [ -z "$lflag" ] ; then
+	for file in `cat grtran.list`
+	do
+		mv $file  $currdir/.
+	done
+fi
+#
+rm namlpre.* stderr$$.grtran  2>/dev/null
+exit 0

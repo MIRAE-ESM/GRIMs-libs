@@ -1,0 +1,219 @@
+#! /bin/sh 
+#
+#
+# This script searches string followed by '_' and generate #define
+# lines and add at the top of the program.
+#
+incdir=../include
+paramodel=../include/paramodel.h
+# 
+#  This script allows four levels of nested include #
+for file 
+do
+	echo ' '
+	echo "DOING $file"
+  #
+  if [ ! -s $file ] ; then
+    echo "$file does not exist"
+    exit 8
+  fi
+#
+#	grep '_' $file >OUT1
+#	grep '_' $file | \
+#	sed '/^[Cc!]/d' >OUT2
+# grep '_' $file | \
+#	sed '/^[Cc!]/d' | \
+#	sed 's/_\([^a-zA-Z0-9_]\)/_\
+#	\1/g' >OUT3
+#	grep '_' OUT3 >OUT4
+# sed 's/^.*[^a-z0-9_]//g' OUT4 >OUT5
+# sed '/^ *$/d' OUT5 | grep '_' >OUT6
+#	sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' OUT6 >OUT7
+#	sort -u OUT7 >OUT8
+#
+	grep '_' $file | \
+	sed '/^[Cc!]/d' | \
+	sed 's/_\([^a-zA-Z0-9_]\)/_\
+	\1/g' | grep '_' | \
+ 	sed 's/^.*[^a-z0-9_]//g' | grep '_' | sed '/^ *$/d' | \
+	sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >out
+#
+	for inc1 in `grep '#include' $file | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+	do
+		if [ "$inc1" = constant.h -o "$inc1" = paramodel.h -o "$inc1" = machine.h -o "$inc1" = define.h ] ; then
+			continue
+		fi
+		if [ -n "$inc1" ] ; then
+			echo "Scanning $inc1"
+		fi
+		for inc2 in `grep '#include' $incdir/$inc1 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+		do
+			if [ "$inc2" = constant.h -o "$inc2" = paramodel.h -o "$inc2" = machine.h  -o "$inc2" = define.h ] ; then
+				continue
+			fi
+			if [ -n "$inc2" ] ; then
+				echo "	Scanning $inc2"
+			fi
+			for inc3 in `grep '#include' $incdir/$inc2 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+			do
+				if [ "$inc3" = constant.h -o "$inc3" = paramodel.h -o "$inc3" = machine.h  -o "$inc3" = define.h ] ; then
+					continue
+				fi
+				if [ -n "$inc3" ] ; then
+					echo "	Scanning $inc3"
+				fi
+				for inc4 in `grep '#include' $incdir/$inc3 | cut -d'<' -f2 | sed 's/>//g' | sort -u`
+				do
+					if [ "$inc4" = constant.h -o "$inc4" = paramodel.h -o "$inc4" = machine.h  -o "$inc4" = define.h ] ; then
+						continue
+					fi
+					if [ -n "$inc4" ] ; then
+						echo "	Scanning $inc4"
+					fi
+					grep '#include' $incdir/$inc4 
+					if [ $? -eq 0 ] ; then
+						echo "Too many nesting levels"
+						exit 8
+					fi
+					grep '_' $incdir/$inc4 | \
+					sed '/^[Cc!]/d' | \
+					sed 's/_\([^a-zA-Z0-9_]\)/_\
+					\1/g' | grep '_' | \
+					sed 's/^.*[^a-z0-9_]//g' | grep '_' | sed '/^ *$/d' | \
+					sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >>out
+				done
+				grep '_' $incdir/$inc3 | \
+				sed '/^[Cc!]/d' | \
+				sed 's/_\([^a-zA-Z0-9_]\)/_\
+				\1/g' | grep '_' | \
+				sed 's/^.*[^a-z0-9_]//g' | grep '_' | sed '/^ *$/d' | \
+				sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >>out
+			done
+			grep '_' $incdir/$inc2 | \
+			sed '/^[Cc!]/d' | \
+			sed 's/_\([^a-zA-Z0-9_]\)/_\
+			\1/g' | grep '_' | \
+			sed 's/^.*[^a-z0-9_]//g' | grep '_' | sed '/^ *$/d' | \
+			sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >>out
+		done
+		grep '_' $incdir/$inc1 | \
+		sed '/^[Cc!]/d' | \
+		sed 's/_\([^a-zA-Z0-9_]\)/_\
+		\1/g' | grep '_' | \
+		sed 's/^.*[^a-z0-9_]//g' | grep '_' | sed '/^ *$/d' | \
+		sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >>out
+	done
+	rm out2 2>/dev/null
+	if [ -s out ] ; then
+		sort -u out | \
+		tr '[a-z]' '[A-Z]' | sed 's/_//g' | sed 's/^/#define /g' >out2
+	fi
+#
+  #  Check whether #define variables are actually defined in the paramodel.h
+	#  Also modify #define XXX to #define XXX xxx in order to avoid XXX replaced
+#  with blanks.
+  #
+	rm out 2>/dev/null
+  if [ -s out2 ] ; then
+    line=`wc -l out2 | sed 's/^ *//g' | sed 's/  */ /g' | cut -d' ' -f1`
+    l=1
+	rm out3 2>/dev/null
+    while [ $l -le $line ] ; do
+      var=`sed -n "$l p" out2 | cut -d ' ' -f2`
+      lvar=`echo $var | tr '[A-Z]' '[a-z]'`
+	if [ $var = MPIREAL ] ; then
+		l=`expr $l + 1`
+		continue
+	fi
+      grep "#ifdef $var *$" $paramodel >/dev/null
+      if [ $? -ne 0 ] ; then
+        echo "#ifdef $var not found in paramodel.h"
+				exit 8
+      fi
+      grep "parameter(${lvar}_=" $paramodel >/dev/null
+      if [ $? -ne 0 ] ; then
+        echo "parameter(${lvar}_= ...) not found in $paramodel"
+				exit 8
+			else
+				#
+				# search rhs of = and look for variable of the form xxx_
+				#
+				grep "parameter(${lvar}_=" $paramodel | \
+				cut -d'=' -f2- | grep '_' | \
+				sed 's/_\([^a-zA-Z0-9_]\)/_\
+				\1/g' | grep '_' | \
+				sed 's/^.*[^a-z0-9_]//g' | sed '/^ *$/d' | \
+				sed '/_[a-zA-Z0-9_][a-zA-Z0-9]*$/d' |  sort -u >>out
+      fi
+			echo `sed -n "$l p" out2` $lvar >>out3
+			l=`expr $l + 1`
+		done
+  fi
+	#
+	#  Same check for variables found in the rhs of parameter statement
+	#
+	if [ -s out ] ; then
+		sort -u out | \
+		tr '[a-z]' '[A-Z]' | sed 's/_//g' | sed 's/^/#define /g' >out2
+		line=`wc -l out2 | sed 's/^ *//g' | sed 's/  */ /g' | cut -d' ' -f1`
+		l=1
+		while [ $l -le $line ] ; do
+			var=`sed -n "$l p" out2 | cut -d ' ' -f2`
+			lvar=`echo $var | tr '[A-Z]' '[a-z]'`
+			grep "#ifdef $var *$" $paramodel >/dev/null
+			if [ $? -ne 0 ] ; then
+				echo "#ifdef $var not found in paramodel.h"
+				exit 8
+			fi
+			grep "parameter(${lvar}_=" $paramodel >/dev/null
+			if [ $? -ne 0 ] ; then
+				echo "parameter(${lvar}_= ...) not found in $paramodel"
+				exit 8
+			fi
+			echo `sed -n "$l p" out2` $lvar >>out3
+			l=`expr $l + 1`
+		done
+	fi
+	if [ -s out3 ] ; then
+		sort -u out3 >out2
+	fi
+	#
+	# delete #define lines at the beginning
+	# 
+  grep -n '^ *p *r *o *g *r *a *m' $file >oline
+  if [ $? -ne 0 ] ; then
+    grep -n '^ *s *u *b *r *o *u *t *i *n *e' $file >oline
+    if [ $? -ne 0 ] ; then
+      grep -n '^ *f *u *n *c *t *i *o *n ' $file >oline
+      if [ $? -ne 0 ] ; then
+        grep -n '^ *r *e *a *l  *f *u *n *c *t *i *o *n ' $file >oline
+        if [ $? -ne 0 ] ; then
+          grep -n '^ *b *l *o *c *k *d *a *t *a' $file >oline
+          if [ $? -ne 0 ] ; then
+            grep -n '^c' $file >oline
+            if [ $? -ne 0 ] ; then
+              echo 'could not find lines to end searching #define'
+              exit 8
+            fi
+          fi
+        fi
+      fi
+    fi
+  fi
+	rm out 2>/dev/null
+	lineno=`head -1 oline | cut -d':' -f1 | awk '{print $1}'` 
+	#echo $lineno
+	line=`expr $lineno - 1`
+	if [ $line -ge 1 ] ; then
+		sed -n "1,$line p" $file | sed "/#define [A-Z][A-Z0-9]*/d" >out
+	fi
+	sed -n "$lineno,$ p" $file >>out
+	#
+	if [ -s out2 ] ; then
+		cat out2 >$file
+		cat out >>$file
+	else
+		cat out >$file
+	fi
+ 	rm out out2 out3 oline 2>/dev/null
+done

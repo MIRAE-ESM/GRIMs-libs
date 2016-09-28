@@ -1,0 +1,95 @@
+#!/bin/sh
+
+set -a
+set -x
+
+echo ' '
+echo 'Converting new reanalysis cloud tuning ..........'
+
+if [ -s tune1.mardec95_vvsyn.asc ] ; then
+	rm tune1.mardec95_vvsyn.asc
+fi
+if [ -s tune1.mardec95_vvsyn.asc.Z ] ; then
+	gunzip tune1.mardec95_vvsyn.asc.Z || exit 8
+fi
+if [ -s tune1.mardec95_vvsyn.asc.gz ] ; then
+	gunzip tune1.mardec95_vvsyn.asc.gz || exit 8
+fi
+#
+INPFILE=tune1.mardec95_vvsyn.asc
+OUTFILE=@CON_DIR@/tune1.mardec95_vvsyn
+cat >tunen.f <<'EOF'
+      DIMENSION ICDART(15),IDART(4)
+C
+      PARAMETER(MCLD=3,NSEAL=2,NBIN=100,NLON=2,NLAT=4)
+      PARAMETER (MCLD1=MCLD+1)
+C
+      DIMENSION RTNFFX(NBIN,NLON,NLAT,MCLD1,NSEAL)
+      DIMENSION KPTX(NLON,NLAT,MCLD1,NSEAL)
+C
+      II=10
+      IO=50
+      READ (II,1000) NBDART,ICDART
+ 1000 FORMAT(12I10)
+      PRINT 100,II,NBDART
+  100 FORMAT(1H ,'..READING UNIT=',I3,'..DAYS ON FILE =',I5)
+      WRITE(IO) NBDART,ICDART
+C
+      READ (II,1001) FHRT,IDART
+ 1001 FORMAT(E14.7,4I10)
+      PRINT 150,IDART,FHRT
+  150 FORMAT(5X,'...LAST DATE/TIME = TIME AND FORECAST HOUR',/,10X,
+     1      4I15,F7.1)
+      WRITE(IO) FHRT,IDART
+C
+      DO KD=1,NBDART
+        PRINT 200,KD
+  200   FORMAT(1H ,'---DAY NUMBER ',I2,'....FOR RTNEPH......')
+        READ (II,1002) RTNFFX
+ 1002   FORMAT(8E14.7)
+        READ (II,1003) KPTX
+ 1003   FORMAT(12I10)
+        WRITE(IO) RTNFFX
+        WRITE(IO) KPTX
+      ENDDO
+C
+      STOP
+      END
+EOF
+echo "@F77@ @FORT_FLAGS@ -o tunen.x tunen.f"
+@F77@ @FORT_FLAGS@ -c tunen.f || exit 8
+@F77@ @LOAD_FLAGS@ -o tunen.x tunen.o || exit 8
+
+if [ @MACHINE@ = x1e ] ; then
+	FILENV=filenv.$$
+	export FILENV
+	assign -R
+else
+	rm -f @FTNID@[0-9]* 2>/dev/null 
+fi
+	@FTASS@ $INPFILE   @FTNID@10
+	@FTASS@ $OUTFILE   @FTNID@50
+
+if [ @MACHINE@ = es ] ; then
+dirhere=`pwd`
+cat >~/tunen_gb.sh <<EOF
+#!/bin/sh
+cd $dirhere
+@RUNENV@ ./tunen.x || exit 8
+EOF
+	chmod 755 ~/tunen_gb.sh
+	rexec gbnode000 -l @USERNAME@ ./tunen_gb.sh
+else
+@RUNENV@ 	./tunen.x  || exit 8
+fi
+
+rm -f tunen.o 2>/dev/null
+rm -f tunen.x tunen.f 
+rm -f @FTNID@[0-9]* 2>/dev/null 
+
+compress tune1.mardec95_vvsyn.asc
+if [ $? -ne 0 ] ; then
+	gzip tune1.mardec95_vvsyn.asc
+fi
+
+exit 0

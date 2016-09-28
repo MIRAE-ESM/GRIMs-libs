@@ -1,0 +1,64 @@
+#! /bin/sh
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+#
+if [ @MACHINE@ = cray -o @MACHINE@ = t90 -o @MACHINE@ = t3e -o @MACHINE@ = x1e ] ; then
+        . /opt/modules/modules/init/sh
+        module load open pbs PrgEnv
+        FILENV=filenv.$$
+        export FILENV
+        assign -R
+else
+        rm -f @FTNID@[0-9]* 2>/dev/null
+fi
+echo $1 >date.data$$
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+hmdyf=`$ETC_DIR/date.x <date.data$$`
+if [ $? -ne 0 ] ; then
+		echo "`date` $0: Execution failed." >>ERROR.out
+		exit 8
+fi
+hour=`echo $hmdyf | awk '{print $1}'`
+mon=`echo $hmdyf | awk '{print $2}'`
+day=`echo $hmdyf | awk '{print $3}'`
+year=`echo $hmdyf | awk '{print $4}'`
+fhour=`echo $hmdyf | awk '{print $5}'`
+#
+cmon1=Jan; cmon2=Feb; cmon3=Mar; cmon4=Apr; cmon5=May; cmon6=Jun
+cmon7=Jul; cmon8=Aug; cmon9=Sep; cmon10=Oct; cmon11=Nov; cmon12=Dec
+MON=\$cmon$mon
+cday1=01; cday2=02; cday3=03; cday4=04; cday5=05
+cday6=06; cday7=07; cday8=08; cday9=09
+DAY=\$cday$day
+cmon=`eval echo $MON`
+cday=`eval echo $DAY`
+MON_DAY=$cmon$cday
+if test $MON_DAY = $cmon 
+then
+   MON_DAY=$cmon$day
+fi
+if test $hour -lt 10
+then
+   hour=0$hour
+fi
+if test $mon -lt 10
+then
+   mon=0$mon
+fi
+if test $day -lt 10
+then
+   day=0$day
+fi
+if test $fhour -lt 10
+then
+   fhour=0$fhour
+fi
+echo "$hour $mon $day $year $fhour"
+rm date.data$$

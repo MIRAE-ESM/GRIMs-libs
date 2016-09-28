@@ -1,0 +1,16 @@
+
+BFILE=$1
+UFILE=$2
+CPLAT=$3
+CWORD=unblk
+
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir
+ETC_DIR=`pwd`
+cd $currdir
+
+$ETC_DIR/bufrblunbl $2 $1 $CWORD $3
+if [ $? -ne 0 ] ; then
+  exit 8
+fi

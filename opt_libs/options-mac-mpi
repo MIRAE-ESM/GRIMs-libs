@@ -1,0 +1,40 @@
+SHELL=/bin/sh
+AR="ar -s"
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=cc
+CPP=$LIBS_DIR/etc/util_mac/cppmac
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options (except fcst related)
+#
+F77=xlf90
+FORT_FLAGS="-O3 -Q -qfixed -qrealsize=8 -qsave -qstrict -qextname"
+LOAD_FLAGS="-O3 -Q -qfixed -qrealsize=8 -qsave -qstrict -qextname"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=xlf90
+UTIL_FORT_FLAGS="-O3 -Q -qfixed -qrealsize=8 -qsave -qstrict -qextname"
+UTIL_LOAD_FLAGS="-O3 -Q -qfixed -qrealsize=8 -qsave -qstrict -qextname"
+#
+W3LIB_F77=xlf90
+W3LIB_FORT_FLAGS="-O3 -Q -qfixed -qsave -qstrict -qextname"
+W3LIB_LOAD_FLAGS="-O3 -Q -qfixed -qsave -qstrict -qextname"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=pgf90
+BFLIB_FORT_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore"
+BFLIB_LOAD_FLAGS="-Mrecursive -Mdalign -DLINUX -byteswapio -Msecond_underscore"
+#
+MTNSUBMIT=

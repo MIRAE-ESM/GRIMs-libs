@@ -1,0 +1,299 @@
+
+#  ------------------------------------------------------------------------
+#  This script will fortran block/unblock BUFR files on a number of
+#  standard computing platforms. Stictly speaking, real BUFR files are
+#  unblocked, that is, a byte stream containing only allowable BUFR
+#  constructs. On some platforms it is advantagous to use the fortran 
+#  blocked structure for i/o efficiency, and on some platforms, when
+#  using fortran i/o, the blocked structure is almost unavoidable.
+#  NOTE: The script is set up to run in the Bourne shell. If you are a
+#  C-shell user, enter 'sh ./cwordsh'.
+#  ------------------------------------------------------------------------
+
+#set -eua; mkdir dummy; cd dummy
+
+#  set parameters here for particular case
+#  ---------------------------------------
+#  $1=UFILE - pure byte stream bufr file to be read/created (path/filename)
+#  $2=BFILE - fortran blocked bufr file to be read/created (path/filename)
+#  $3=CWORD - block/unblk
+#  $4=CPLAT - platform type (sgi,hp,sun,cray,etc)
+#  ------------------------------------------------------------------------
+
+#
+F77=@F77@
+# 
+UFILE=$1
+BFILE=$2
+CWORD=$3
+CPLAT=$4
+
+#  ------------------------------
+#  ------------------------------
+ 
+#  different platforms use different link name protocols
+#  -----------------------------------------------------
+
+if [ $CPLAT = sgi ]
+then
+   openrb=openrb_
+   openwb=openwb_
+   crdbfr=crdbufr_
+   cwrbfr=cwrbufr_
+   lenmsg=lenm_
+   cc=cc; ff=$F77
+elif [ $CPLAT = sun ]
+then
+   openrb=openrb_
+   openwb=openwb_
+   crdbfr=crdbufr_
+   cwrbfr=cwrbufr_
+   lenmsg=lenm_
+   cc=cc; ff=$F77
+elif [ $CPLAT = hp  ]
+then
+   openrb=openrb_
+   openwb=openwb_
+   crdbfr=crdbufr_
+   cwrbfr=cwrbufr_
+   lenmsg=lenm_
+   cc=cc; ff=$F77
+elif [ $CPLAT = cray ]
+then
+   openrb=OPENRB
+   openwb=OPENWB
+   crdbfr=CRDBUFR
+   cwrbfr=CWRBUFR
+   lenmsg=LENM
+   cc=cc; ff=$F77
+elif [ $CPLAT = linux -o $CPLAT = dec -o $CPLAT = x1e ]
+then
+   openrb=openrb_
+   openwb=openwb_
+   crdbfr=crdbufr_
+   cwrbfr=cwrbufr_
+   lenmsg=lenm_
+   cc=cc; ff=$F77
+elif [ $CPLAT = ibmsp ]
+then
+   openrb=openrb
+   openwb=openwb
+   crdbfr=crdbufr
+   cwrbfr=cwrbufr
+   lenmsg=lenm
+   cc=xlc; ff=$F77
+fi
+ 
+#  compile the c part of the program
+#  ---------------------------------
+
+cat <<eof>ccwords.c
+#include <stdio.h>
+FILE *pb;
+void $openrb () { pb = fopen( "$UFILE", "rb" ); }
+void $openwb () { pb = fopen( "$UFILE", "wb" ); }
+int  $crdbfr (bufr)
+int  *bufr;
+{  int  nwrd; int  nb;
+   nb=4;
+   /* nb = sizeof(bufr); */
+   if((nwrd=fread(bufr,nb,8/nb,pb))!=0)
+   {  nwrd = $lenmsg(bufr);
+      fread(bufr+8/nb,nb,nwrd-8/nb,pb);
+      return nwrd;
+   }
+   else
+      return -1;
+}
+int  $cwrbfr (bufr)
+int  *bufr;
+{  int  nwrd; int  nb;
+   nb=4;
+   /* nb = sizeof(bufr); */
+   nwrd = $lenmsg(bufr);
+   fwrite(bufr,nb,nwrd,pb);
+   return(0);
+}
+eof
+$cc -c ccwords.c
+if [ $? -ne 0 ] ; then
+	echo "Error in $cc -c ccwords.c"
+	exit 8
+fi
+ 
+#  compile the fortran part of the program 
+#  ---------------------------------------
+
+cat <<eof>fcwords.f
+      program fcwords
+      character*8 cword
+      dimension   mbay(3000)
+      integer     crdbufr,cwrbufr
+c
+      call wrdlen
+      cword = '$CWORD'
+      open(8,file='$BFILE',
+     1     form='unformatted')
+c 
+      if(cword.eq.'block') then
+c         print*,"blocking ",
+c    1          "$UFILE to ",
+c    2          "$BFILE on ",
+c    3          "$CPLAT"
+         call openrb()
+         do while(crdbufr(mbay).ge.0)
+         iwt = fwrbufr(mbay)
+         enddo
+         stop
+      endif
+c 
+      if(cword.eq.'unblk') then
+c        print*,"unblocking ",
+c    1          "$BFILE to ",
+c    2          "$UFILE on ",
+c    3          "$CPLAT"
+         call openwb()
+         do while(frdbufr(mbay).ge.0)
+         iwt = cwrbufr(mbay)
+         enddo
+         stop
+      endif
+ 
+      stop
+      end
+c-----------------------------------------------------------------------
+      function frdbufr(mbay)
+      common /hrdwrd/ nb,nbitw,nrev,iord(8)
+      dimension mbay(*)
+      read(8,end=100) (mbay(i),i=1,8/nb),(mbay(i),i=1+8/nb,lenm(mbay))
+      frdbufr = 0
+      return
+100   frdbufr = -1
+      end
+c-----------------------------------------------------------------------
+      function fwrbufr(mbay)
+      dimension mbay(*)
+      write(8) (mbay(i),i=1,lenm(mbay))
+      fwrbufr = 0
+      return
+      end
+c-----------------------------------------------------------------------
+      function lenm(mbay)
+      common /hrdwrd/ nb,nbitw,nrev,iord(8)
+      dimension mbay(*)
+      lenm = (1+iupb(mbay,5,24)/8)*8/nb
+      return
+      end
+c----------------------------------------------------------------------
+      function iupb(ibay,nbyt,nbits)
+      common /hrdwrd/ nbytw,nbitw,nrev,iord(8)
+      dimension ibay(*)
+      ibit = (nbyt-1)*8
+      nwd = (ibit)/nbitw+1
+      nbt = mod(ibit,nbitw)
+      int = ishft(irev(ibay(nwd)),nbt)
+      int = ishft(int,nbits-nbitw)
+      lbt = nbt+nbits
+      if(lbt.gt.nbitw) jnt = irev(ibay(nwd+1))
+      if(lbt.gt.nbitw) int = ior(int,ishft(jnt,lbt-2*nbitw))
+      iupb = int
+      return
+      end
+c----------------------------------------------------------------------
+      function irev(n)
+      common /hrdwrd/ nbytw,nbitw,nrev,iord(8)
+      character*8 cint,dint
+      equivalence(cint,int)
+      equivalence(dint,jnt)
+      if(nrev.eq.0) then
+         irev = n
+      else
+         int = n
+         do i=1,nbytw
+         dint(i:i) = cint(iord(i):iord(i))
+         enddo
+         irev = jnt
+      endif
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine wrdlen
+      common /hrdwrd/ nbytw,nbitw,nrev,iord(8)
+      character*8 cint,dint
+      equivalence (cint,int)
+      equivalence (dint,jnt)
+ 
+c-----------------------------------------------------------------------
+c-----------------------------------------------------------------------
+ 
+c  count the bits in a word - max 64 allowed
+c  -----------------------------------------
+ 
+      int = 1
+      do i=1,65
+      int = ishft(int,1)
+      if(int.eq.0) goto 10
+      enddo
+10    if(i.ge.65)       goto 900
+      if(mod(i,8).ne.0) goto 901
+      nbitw = i
+      nbytw = i/8
+ 
+c  index the byte storage order -  high byte to low byte
+c  -----------------------------------------------------
+ 
+      jnt = 0
+      do i=1,nbytw
+      int = ishft(1,(nbytw-i)*8)
+      do j=1,nbytw
+      if(cint(j:j).ne.dint(j:j)) goto 20
+      enddo
+20    if(j.gt.nbytw) goto 902
+      iord(i) = j
+      enddo
+ 
+c  set the noreverse flag - 0=noreverse;1=reverse
+c  ----------------------------------------------
+ 
+      nrev = 0
+      do i=1,nbytw
+      if(iord(i).ne.i) nrev = 1
+      enddo
+ 
+c  show the results
+c  ----------------
+ 
+      print100,nbytw,nbitw,nrev,(iord(i),i=1,nbytw)
+100   format('wrdlen:nbytw=',i1,' nbitw=',i2,' irev=',i1,' iord=',8i1)
+ 
+      return
+900   call abort('wrdlen - a word is more than 64 bits')
+901   call abort('wrdlen - a word is not made of bytes')
+902   call abort('wrdlen - byte order checking mistake')
+      end
+eof
+
+set -x
+$ff -c fcwords.f 2> $ff.out
+if [ $? -ne 0 ] ; then
+	echo "Error in $ff -c fcwords.f"
+	exit 8
+fi
+
+#  load the executable and go - cleanup when done
+#  ----------------------------------------------
+#
+NO_STOP_MESSAGE=true
+export NO_STOP_MESSAGE
+#
+$ff -o cwords.x fcwords.o ccwords.o
+if [ $? -ne 0 ] ; then
+	echo "Error in $ff -o cwords.x fcwords.o ccwords.o"
+	exit 8
+fi
+#
+@RUNENV@ ./cwords.x
+if [ $? -ne 0 ] ; then
+	echo "Error in cwords.x"
+	exit 8
+fi

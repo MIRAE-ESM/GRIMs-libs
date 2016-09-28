@@ -1,0 +1,105 @@
+EXECUTABLES = date.x chgdates.x chgdates_dfs.x ifdef.x ieee2grb_sst.x incdte.x \
+	inchour.x ieee2grb_sm.x ieee2grb.x prmap.x sigphys.x scnvrt.x rsigdiff.x \
+	interp_subr.o gribinterp.x scnvrt_gfs.x scnvrt_gsi.x sigdif.x sigadd.x
+EXECMPI=mpiset.x rmpiset.x
+OBJS = ${EXECUTABLES:.x=.o}
+CEXECUTABLES = force_grib_date_mon wgrib maketim sdir force_grib_date_mon_fhr
+CSRC = ${CEXECUTABLES:=.c}
+
+SHELL = @SHELL@
+CC = @CC@
+CPP = @CPP@
+RM = @RM@
+CD = @CD@
+CP = @CP@
+CHMOD = @CHMOD@
+
+F77 = @UTIL_F77@
+FORT_FLAGS = @FORT_FLAGS@
+LOAD_FLAGS = @LOAD_FLAGS@
+FORT_FLAGS_MPI = @FORT_FLAGS@
+LOAD_FLAGS_MPI = ${FORT_FLAGS_MPI}
+LIB_DIR = @LIB_DIR@
+ETC_DIR = @ETC_DIR@
+INCLUDE_DIR = @UTILS_INCLUDE_DIR@
+
+LIB = ${LIB_DIR}/w3lib.a ${LIB_DIR}/modelib.a ${LIB_DIR}/libncaru.a
+
+all:execs ${EXECMPI}
+
+execs :	 ${EXECUTABLES} ${CEXECUTABLES}
+	if [ ! -s ${ETC_DIR} ] ; then \
+		mkdir -p ${ETC_DIR}; \
+	fi
+	${CP} $? ${ETC_DIR}; \
+	${CD} ${ETC_DIR}; \
+	${CHMOD} 755 $?
+
+cexecs :	${CEXECUTABLES}
+	if [ ! -s ${ETC_DIR} ] ; then \
+		mkdir -p ${ETC_DIR}; \
+	fi
+	${CP} $? ${ETC_DIR}; \
+	cd ${ETC_DIR}; \
+	${CHMOD} 755 $?
+
+.SUFFIXES : .x .o .f90 .F90 .c
+
+mpiset.x:mpiset.F90
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+	${F77} ${FORT_FLAGS_MPI} -c $*.f90
+	${F77} ${LOAD_FLAGS_MPI} -o $@ $<
+	${CP} $@ ${ETC_DIR}; \
+	${CHMOD} 755 ${ETC_DIR}/$@
+
+rmpiset.x:rmpiset.F90
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+	${F77} ${FORT_FLAGS_MPI} -c $*.f90
+	${F77} ${LOAD_FLAGS_MPI} -o $@ $<
+	${CP} $@ ${ETC_DIR}; \
+	${CHMOD} 755 ${ETC_DIR}/$@
+
+.F90.f90 :
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+
+.F90.o :
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+	${F77} ${FORT_FLAGS} -c $*.f90
+
+.F90.x : ${LIB}
+	if [ @MACHINE@ = mac ] ; then \
+		ranlib -s ${LIB} ; \
+	fi
+	${CPP} -P ${INCLUDE_DIR} $*.F90 >$*.i
+	sed '/^ *$$/d' $*.i >$*.f90 ; rm $*.i
+	${F77} ${FORT_FLAGS} -c $*.f90
+	${F77} ${LOAD_FLAGS} -o $@ $*.o ${LIB}
+
+.o.x : ${LIB}
+	if [ @MACHINE@ = mac ] ; then \
+		ranlib -s ${LIB} ; \
+	fi
+	${F77} ${LOAD_FLAGS} -o $@ $< ${LIB}
+
+.f90.x : ${LIB}
+	if [ @MACHINE@ = mac ] ; then \
+		ranlib -s ${LIB} ; \
+	fi
+	${F77} ${FORT_FLAGS} -c $<
+	${F77} ${LOAD_FLAGS} -o $@ $*.o ${LIB}
+
+.f90.o :
+	${F77} ${FORT_FLAGS} -c $<
+
+.c :
+	${CC} -o $@ ${INCLUDE_DIR} $< -lm
+
+clean :
+	- ${CD} ${ETC_DIR}; ${RM} -rf *.f90 *.o *.x core rii_files ${EXECUTABLES} ${CEXECUTABLES}
+	- ${RM} -f *.f90 *.o *.x *.a core ${EXECUTABLES} ${CEXECUTABLES}
+
+# DO NOT DELETE

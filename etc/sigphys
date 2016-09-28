@@ -1,0 +1,240 @@
+#!/bin/sh
+set -x
+#
+#  generates station observation (including vertical profile) from
+#  sigma file(s).
+#  the list of variables are:
+#
+# gz     sfc  surface geopotential height(m)
+# ps     sfc  surface pressure(mb)
+# zeflx  clmn total column vorticity flux(N/m**3)
+# tflx   clmn total column heat flux(w/m**2)
+# qflx   clmn total column moisture flux(w/m**2)
+# zflx   clmn total column geopt hgt flux(w/m**2)
+# z      levs geopotential height(m)
+# u      levs east-west component of wind(m/s)
+# v      levs north-south component of wind(m/s)
+# tv     levs virtual temperature(K)
+# t      levs temperature(K)
+# q      levs specific humidity(gm/gm)
+# div    levs divergence(1/s)
+# vor    levs vorticity(1/s)
+# omega  levs vertical pressure velocity(mb/s)
+# votflx levs layer weighted vorticity flux(/s2)
+# tdflx  levs layer weighted temperature flx(K/s2)
+# qdflx  levs layer weighted moisture flx (1/s2)
+# zzflx  levs layer weighted geo height flx (1/s2)
+# zz     levs geopotential height (m)
+#
+if [ $# -eq 0 ] ; then
+	echo 'Usage: [-s file] sigphys jcap levs lat lon stid filename-in-%-format'
+	exit 8
+fi
+#
+#  -s file  ... file name that contains file names to be processed (do not provide
+#               grib-filename-in-%-format)
+#
+#  if the file name has the following file identifier suffix, it will be
+#  be converted to the native machine format before computation.
+#  cos      ... cos blocked cray binary (*.cos)
+#  ibm      ... cos blocked ibm binary (*.ibm)
+#  ieee     ... fortran ieee (*.ieee)
+#  ieee_dp  ... double precision fortran ieee (*.ieee_dp)
+#  ieee_sgi ... double prec. real, single prec. integer ieee (*.ieee_sgi)
+#  ascii    ... ascii (*.ascii)
+#
+set -- `getopt s: $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+  case $1 in
+	-s) sarg=$2 ;;
+  esac
+  shift
+done
+shift
+#
+dir=`echo $0 | sed 's?/[^/]*$??g'`
+currdir=`pwd`
+cd $dir 2>/dev/null
+SIGPHYSDIR=`pwd`
+echo "SIGPHYSDIR=$SIGPHYSDIR"
+cd $currdir
+echo $1 $2 $3 $4 $5 $6
+filename=$6
+file_format=`echo $filename | sed 's/.*\.//g'`
+ucnvrt=no
+if [ "$file_format" != ibm -a "$file_format" != ieee -a \
+    "$file_format" != ieee_dp -a "$file_format" != ieee_sgi -a \
+    "$file_format" != ascee -a "$file_format" != cos ] ; then
+	file_format=' '
+fi
+#
+cat <<EOF >sigphys.parm
+ &namdat
+ jcap=$1,
+ levs=$2,
+ rdlat=$3,
+ rdlon=$4,
+ stid="$5",
+ filefmt="$file_format",
+/
+EOF
+#
+if [ -n "$filename" ] ; then
+	hmaps=`echo $filename | cut -c 1`
+	if [ "$hmaps" != '/' ] ; then
+		filename=$currdir/$filename
+	fi
+	#
+	n=0
+	for filenam in $filename
+	do
+	#
+		DELIM=
+		for ii in '%' '#' '~' '@'
+		do
+			echo $filenam | grep "$ii" >/dev/null
+			rc=$?
+			if [ $rc -eq 0 ] ; then
+				DELIM="$ii"
+				break
+			fi
+		done
+		if [ -z "$DELIM" ] ; then
+			DELIM='%'
+		fi
+		export DELIM
+		hmaps=`echo $filenam | cut -c 1`
+		if [ "$hmaps" != '/' ] ; then
+			filenam=$curdir/$filenam
+		fi
+		echo $filenam | grep "$DELIM" >/dev/null
+		if [ $? -ne 0 -a ! -s  $filenam ] ; then
+			echo " Error!!!  $filenam empty."
+			exit 8
+		fi
+		n=`expr $n + 1`
+		eval filenam$n=$filenam
+		shift
+	done
+	nfile=$n
+	#
+	echo ' '
+	fexist=no
+	#
+	cnt=0
+	ndln=1
+	for argus in $filename
+	do
+		cnt=` expr $cnt + 1 `
+		ndln=`expr $ndln + 1`
+		fngrib=$argus
+		echo "$fngrib" >>namlpre.1
+		#
+		#  Find file names of the grads wild card format
+		#
+		filenx="`echo "$fngrib" | sed "s/${DELIM}[ymdh]1/[0-9]/g"`"
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]2/[0-9][0-9]/g"`
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]3/[0-9][0-9][0-9]/g"`
+		filenx=`echo "$filenx" | sed "s/${DELIM}[ymdh]4/[0-9][0-9][0-9][0-9]/g"`
+		filen1=`echo "$filenx" | sed "s/${DELIM}f1/[0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f2/[0-9][0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f3/[0-9][0-9][0-9]/g"`
+		filen1=`echo "$filen1" | sed "s/${DELIM}f4/[0-9][0-9][0-9][0-9]/g"`
+		filen2=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9]/g"`
+		filen2=`echo "$filen2" | sed "s/${DELIM}f2/[0-9][0-9][0-9]/g"`
+		filen2=`echo "$filen2" | sed "s/${DELIM}f3/[0-9][0-9][0-9][0-9]/g"`
+		filen3=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9]/g"`
+		filen3=`echo "$filen3" | sed "s/${DELIM}f2/[0-9][0-9][0-9][0-9]/g"`
+		filen4=`echo "$filenx" | sed "s/${DELIM}f1/[0-9][0-9][0-9][0-9]/g"`
+		#
+		ccnt=0
+		cccc=0
+		nf=1
+		echo ' '
+		echo ' '
+		echo ' Searching file(s) of the form,' " $fngrib"
+		echo ' '
+		while [ $nf -le 4 ] ; do
+			filenm=`eval echo '\$filen'$nf`
+			if [ $nf -gt 1 ] ; then
+				nff=1
+				while [ $nff -le $nf ] ; do
+					if [ $nff -eq $nf ] ; then
+						nff=`expr $nff + 1`
+						continue
+					fi
+					filenx=`eval echo '\$filen'$nff`
+					if [ "$filenm" = "$filenx" ] ; then
+						nf=`expr $nf + 1`
+						continue 2
+					fi
+					nff=`expr $nff + 1`
+				done
+			fi
+			#
+			if [ "$filenm" != $fngrib ] ; then
+			#
+				cccx=0
+				for filen in $filenm
+				do
+					cccc=`expr $cccc + 1`
+					cccx=`expr $cccx + 1`
+					if [ -f $filen ] ; then
+						if [ -s $filen ] ; then
+							echo $filen >>namlpre.$$
+							ccnt=` expr $ccnt + 1 `
+							fexist=yes
+						else
+							echo " File $filen empty.  Skipped"
+							shift
+						fi
+					else
+						if [ $nf -eq 1 ] ; then
+							echo " Caution! File of the %f? type with matching ? not found."
+						fi
+					fi
+				done
+			else
+				if [ $nf -eq 1 ] ; then
+					echo " Searching file, $fngrib"
+				fi
+				if [ -s $filenm ] ; then
+					fexist=yes
+					ccnt=` expr $ccnt + 1 `
+					echo $filenm >>namlpre.$$
+				else
+					if [ $nf -eq 1 ] ; then
+						echo " File $filenm empty.  Skipped"
+					fi
+				fi
+			fi
+			nf=`expr $nf + 1`
+		done
+		echo " Number of Files found for this type=$ccnt"
+		cat namlpre.$$
+	done
+	#
+	if [ $fexist = no ] ; then
+		echo " All files are empty."
+		exit 8
+	fi
+	#
+	cat namlpre.$$ >>sigphys.parm
+	rm namlpre.$$ 2>/dev/null
+	#
+else  #  file name list given by a file
+	#
+	#  Always in /tmp
+	#
+	listfile=$sarg
+	mapsx=`echo $filename | sed 's%/[^/]*$%%g' | sed 's%^.*/%%g'`
+	cat $listfile >>sigphys.parm
+fi
+#
+$SIGPHYSDIR/sigphys.x <sigphys.parm
+if [ $? -ne 0 ] ; then
+	echo "`date` $0: Execution failed." >>ERROR.out
+	exit 8
+fi

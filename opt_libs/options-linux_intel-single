@@ -1,0 +1,39 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=icc
+CPP='cpp -traditional-cpp'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options (except fcst related)
+#
+F77=ifort
+FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -module ../include -m64 -mcmodel medium -vec-report0"
+LOAD_FLAGS="${FORT_FLAGS}"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=ifort
+UTIL_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+UTIL_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+#
+W3LIB_F77=ifort
+W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl -vec-report0"
+W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl -vec-report0"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=ifort
+BFLIB_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+BFLIB_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+#

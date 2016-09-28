@@ -1,0 +1,7 @@
+for file in `ls *pgb.ft*_pe00`
+do
+	pfile=`echo $file | sed 's/_pe00 *$//g'`
+	cat ${pfile}_pe* >$pfile
+	rm ${pfile}_pe*
+done
+

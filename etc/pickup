@@ -1,0 +1,107 @@
+#!/bin/sh
+#
+print_usage() {
+cat <<EOF
+Usage: \$LIBS_DIR/etc/pickup [-i BUFR_FILE_NAME] [-d LatN:LatS:LonW:LonE]
+
+        BUFR_FILE_NAME=bufr file name to be processed
+   	LATn==north boundary of domain (-90 - +90)
+	LATs==south boundary of domain (-90 - +90)
+        LONw==west boundary of domain (0 - 360 or -180 - 180)
+        LONe==east boundary of domain (0 - 360 or -180 - 180)
+        
+if you want other kind of data or obs type or all data within the depth of level.
+Usage: \$LIBS_DIR/etc/pickup [-i BUFR_FILE_NAME] [-d LatN:LatS:LonW:LonE]
+                           [-l up:down] [-k FGS] [-t SFC] 
+   -l :   upper and lower pressure level 
+   -k :   OBS==observation
+	  FGS==first guess
+	  ANL==analysis 
+   -t :   SFC==surface land
+	  SHP==surface ship
+	  UPP==rawinsonde
+	  CRF==aircraft
+	  SAT==satellite
+ex) To extract analysis data for rawinsonde data
+    /home/libs/etc/pickup -i bufr.1997110700 -d -10.1:89.0:30.1:299.8 -k ANL  
+ex) To extract analysis aircraft data at specific depth.
+    /home/libs/etc/pickup -i bufr.1997110700 -d -10.1:89.0:30.1:299.8 -l 200:1020 -k ANL -t CRF
+Note: 1. Quality mark (QM): only data with quality mark less than 4 
+                       are used in data assimilation.
+      2. First guess and analysis data do not report pressure data except
+         surface pressure. All pressure values except surface pressure come 
+         from observation.
+      3. Output format: time departure, data type, lon, lat, QM, Psfc
+                        QM, humidity, QM, temp, QM, height, QM, wind u & v
+             format(f6.2,1x,a4,2f7.2,a2,f7.1,a2,f8.1,a2,f8.2,a2,f8.1,a2,2f6.2)
+EOF
+}
+#
+#  introductory note
+#
+echo "This script is to extract rawinsonde observation data at the standard"
+echo "pressure levels within the domain you specify."
+echo "ex)  /home/libs/etc/pickup -i bufr.1997110700 -d -10.1:89.0:30.1:299.8"
+echo "If you want to extract first guess or analysis data with other kind of"
+echo "data type and different level, exit and type $LIBS_DIR/etc/pickup --help"
+echo 
+for arg
+do 
+	case "$arg" in
+		--help | -help | -h)
+		print_usage >& 2
+                exit ;;
+        esac
+done
+kind=OBS
+set -- `getopt i:d:l:t:p:k: $*`
+err=$?
+while [ "$1" != "--" -a $err -eq 0 ]
+do
+        case $1 in
+                -i) BUFR_FILE_NAME=$2 ;;
+                -d) domain=$2 ;;
+                -l) level=$2 ;;
+                -k) kind=$2 ;;
+                -t) type=$2 ;;
+        esac
+        shift
+done
+LATn=`echo $domain | cut -d':' -f1`
+LATs=`echo $domain | cut -d':' -f2`
+LONw=`echo $domain | cut -d':' -f3`
+LONe=`echo $domain | cut -d':' -f4`
+UP=`echo $level   | cut -d':' -f1`
+DOWN=`echo $level | cut -d':' -f2`
+#
+ETC_DIR=`echo $0 | sed 's?/[^/]*$??g'`
+WORK_DIR=`pwd`
+MACHINE=`grep 'MACHINE=' $ETC_DIR/../configure-libs | cut -c9-99`
+F77=`grep '^F77 =' $ETC_DIR/utils/Makefile | cut -c7-99`
+FORT_FLAG=`grep 'FORT_FLAGS ' $ETC_DIR/utils/Makefile | cut -c14-99`
+LOAD_FLAG=`grep 'LOAD_FLAGS ' $ETC_DIR/utils/Makefile | cut -c14-99`
+#
+if [ ! -s $ETC_DIR/utils/pickup.x ] ; then
+cd $ETC_DIR/utils
+$F77 -c $FORT_FLAG pickup.f
+$F77 $LOAD_FLAG -o pickup.x pickup.o $ETC_DIR/../lib/bufr.a
+fi
+#
+cd $WORK_DIR || exit 8
+	bufr_file=`eval echo $BUFR_FILE_NAME`
+	if [ ! -s $bufr_file ] ; then
+		echo "$bufr_file NOT FOUND" >>ERROR.out
+		exit 8
+	fi
+        if [ ! -s obcycle.bufr ] ; then
+        $ETC_DIR/bufrblunbl $bufr_file obcycle.bufr block $MACHINE || exit 8
+        fi
+#
+        ln -sf obcycle.bufr fort.11
+	ln -sf $ETC_DIR/utils/pickup.x pickup.x
+        if [ -z "$UP" ] ; then
+        echo $LATn $LATs $LONw $LONe 9999. 9999. $kind 99 | pickup.x
+        else
+        echo $LATn $LATs $LONw $LONe $UP $DOWN $kind $type | pickup.x
+        fi
+        rm -rf fort.* pickup.x
