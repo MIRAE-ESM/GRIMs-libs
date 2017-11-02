@@ -35,6 +35,7 @@ ZFILES = clim.deepsoil.grib \
 				clim.soiltype40m.grib \
 				clim.vegfrac40m.grib \
 				clim.vegtype40m.grib \
+				clim.vegfrac-nesdis.grib \
 				clim.maskh.grib \
 				clim.shdmax.grib \
 				clim.shdmin.grib \
@@ -57,7 +58,9 @@ ZFILES = clim.deepsoil.grib \
 				slmsk1x1.asc \
 				slmsk1x1.ieee \
 				standard_atm.asc \
-				verlev.asc
+				verlev.asc \
+				usgs30s.ieee \
+				statsgo30s.ieee
 
 IFILES = sig.anl.2001071400.ieee \
 			sig.anl.2001071406.ieee \

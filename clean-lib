@@ -40,6 +40,7 @@ rm -f con/clim.sst.grib
 rm -f con/glob.veg1typ.vegtyp.grib
 rm -f con/ldas.soil.dsmax.grib
 rm -f con/glob.soil.binf.grib
+rm -f con/clim.vegfrac-nesdis.grib
 rm -f con/Makefile
 rm -f con/cns_348_490850.asc
 rm -f con/ldas.veg1typ.vegtyp.grib
@@ -160,6 +161,8 @@ rm -f con/snowanl.781201.grib
 rm -f con/clim.maxice.grib
 rm -f con/sfc.anl.1996050500.ieee
 rm -f con/clim.soiltype.grib
+rm -f con/usgs30s.ieee
+rm -f con/statsgo30s.ieee
 rm -f etc/scnvrt
 rm -f etc/grmapsub
 rm -f etc/fhour
