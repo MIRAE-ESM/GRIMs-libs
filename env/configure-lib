@@ -19,7 +19,7 @@
 #  INSTITUTION=[sml,nml,kisti,kma,kesti,ncar,apcc,snu,noaa,kiaps,kiapsrt,haenam]
 #
 MACHINE=linux_intel
-MARCH=mpi
+MARCH=hybrid
 INSTITUTION=snu
 USERNAME=sul
 #
