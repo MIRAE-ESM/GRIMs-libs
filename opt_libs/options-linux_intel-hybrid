@@ -17,7 +17,7 @@ FTASS='ln -fs'
 #
 F77=ifort
 F77_FCST=mpif90
-FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -module ../include -fp-model source"
+FORT_FLAGS="-r8 -O2 -openmp -DLINUX -convert big_endian -module ../include -fp-model source"
 LOAD_FLAGS="${FORT_FLAGS}"
 EXTRA_LIBS=
 #
