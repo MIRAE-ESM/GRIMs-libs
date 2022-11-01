@@ -4,7 +4,7 @@ AS=as
 CP=cp
 RM=rm
 CD=cd
-CC=icc
+CC=gcc
 CPP='cpp -traditional-cpp'
 MAKE=make
 MKDIR=mkdir
@@ -16,23 +16,39 @@ FTASS='ln -fs'
 #  Model compiler options (except fcst related)
 #
 F77=ifort
-FORT_FLAGS="-r8 -O2 -openmp -DLINUX -convert big_endian -module ../include -fp-model source"
-LOAD_FLAGS="${FORT_FLAGS}"
+F77_FCST=ifort
+FORT_FLAGS="-r8 -O2 -fp-model precise -openmp -mcmodel medium -module ../include"
+LOAD_FLAGS="-r8 -O2 -fp-model precise -openmp -mcmodel medium"
 EXTRA_LIBS=
 #
 #  UTILS is normally same as the model options
 #
 UTIL_F77=ifort
-UTIL_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-UTIL_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
+UTIL_FORT_FLAGS="-r8 -O2 -fp-model precise -mcmodel medium"
+UTIL_LOAD_FLAGS="-r8 -O2 -fp-model precise -mcmodel medium"
 #
 W3LIB_F77=ifort
-W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl -fp-model source"
-W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl -fp-model source"
+W3LIB_FORT_FLAGS="-fp-model precise -convert big_endian -assume byterecl"
+W3LIB_LOAD_FLAGS="-fp-model precise -convert big_endian -assume byterecl"
 #
 FFT99M=fft99m.o
 #
 BFLIB_F77=ifort
-BFLIB_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-BFLIB_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
+BFLIB_FORT_FLAGS="-r8 -O2 -fp-model precise -mcmodel medium"
+BFLIB_LOAD_FLAGS="-r8 -O2 -fp-model precise -mcmodel medium"
+#
+EXTRA_LIBS=
+#
+EXTRA_LIBS_CHGR=
+EXTRA_LIBS_FCST=
+EXTRA_LIBS_RFCST=
+EXTRA_LIBS_GDAS=
+EXTRA_LIBS_SFC0=
+EXTRA_LIBS_PGB=
+EXTRA_LIBS_SGB=
+EXTRA_LIBS_RINPG=
+EXTRA_LIBS_MTN=
+EXTRA_LIBS_RMTN=
+EXTRA_LIBS_RPGB=
+EXTRA_LIBS_RSGB=
 #

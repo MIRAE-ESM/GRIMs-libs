@@ -1,0 +1,54 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=icc
+CPP='cpp -traditional-cpp'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+#
+#  Model compiler options (except fcst related)
+#
+F77=ifort
+F77_FCST=${F77}
+FORT_FLAGS="-r8 -O2 -convert big_endian -module ../include -mcmodel medium -I\${NETCDF}/include -L\${NETCDF}/lib -lnetcdff -lnetcdf"
+LOAD_FLAGS="${FORT_FLAGS}"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=ifort
+UTIL_FORT_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium"
+UTIL_LOAD_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium"
+#
+W3LIB_F77=ifort
+W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl"
+W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=ifort
+BFLIB_FORT_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium"
+BFLIB_LOAD_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium"
+#
+EXTRA_LIBS=
+#
+EXTRA_LIBS_CHGR=
+EXTRA_LIBS_FCST=
+EXTRA_LIBS_RFCST=
+EXTRA_LIBS_GDAS=
+EXTRA_LIBS_SFC0=
+EXTRA_LIBS_PGB=
+EXTRA_LIBS_SGB=
+EXTRA_LIBS_RINPG=
+EXTRA_LIBS_MTN=
+EXTRA_LIBS_RMTN=
+EXTRA_LIBS_RPGB=
+EXTRA_LIBS_RSGB=
+#

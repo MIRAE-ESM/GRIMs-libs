@@ -115,7 +115,7 @@
 114:layer between two isentropic levels   :K:-1.:475.:theta:layer:tlr
 115:
 116:layer btwn two pres levs rel to sfc   :hPa:1.:0.:pressure:layer:plg
-117:
+117:potential vorticity surface           :km^2/kg/s:0.000000001:0.:-:slevel:pv
 118:
 119:
 120:
@@ -202,7 +202,7 @@
 201:
 202:
 203:
-204:
+204:highest trop freezing level           :-:1.:0.:-:slevel:htfl
 205:
 206:
 207:

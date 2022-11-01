@@ -610,7 +610,7 @@
    real                 ::  f(im*jm)
    logical              ::  lbm(im*jm)
    character            ::  grib(*)
-   integer,parameter    ::  imax=1000
+   integer,parameter    ::  imax=2000
    integer              ::  ibm(imax*imax),ipds(100),igds(100),ibds(100)
    real                 ::  fr(imax*imax)
    character            ::  pds(1000)

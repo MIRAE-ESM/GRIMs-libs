@@ -75,8 +75,8 @@ ROMSSUP_FORT_FLAGS="-O3"
 ROMSSUP_LOAD_FLAGS=
 ROMS_FORT_FLAGS="-O3"
 ROMS_LOAD_FLAGS=
-ROMSSUP_EXTRA_LIBS="-L\$(NETCDF_LIBDIR) -lnetcdf -lnetcdff"
-ROMS_EXTRA_LIBS="-L\$(NETCDF_LIBDIR) -lnetcdf -lnetcdff"
+ROMSSUP_EXTRA_LIBS="-L\$(NETCDF_DIR)/lib -lnetcdf -lnetcdff"
+ROMS_EXTRA_LIBS="-L\$(NETCDF_DIR)/lib -lnetcdf -lnetcdff"
 MODELSUP_EXTRA_LIBS=
 MDEPFLAGS="--cpp --fext=f90 --file=- --objdir=\$(SCRATCH_DIR)"
 HDF5_LIBDIR=

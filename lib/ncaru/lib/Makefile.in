@@ -14,6 +14,8 @@
 # or implied warranty.
 
 SHELL = @SHELL@
+NETCDF_DIR = @NETCDF_DIR@
+LAPACK_DIR = @LAPACK_DIR@
 LIB_DIR = @LIB_DIR@
 AR = @AR@
 CC = @CC@

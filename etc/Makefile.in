@@ -6,6 +6,8 @@ CD = @CD@
 RM = @RM@
 MAKE = @MAKE@
 
+NETCDF_DIR = @NETCDF_DIR@
+LAPACK_DIR = @LAPACK_DIR@
 ETC_DIR = @ETC_DIR@
 
 all : 

@@ -12,7 +12,7 @@ CHMOD=chmod
 ECHO=echo
 FTNID=fort.
 FTASS='ln -fs'
-RUNENV=
+RUNENV=''
 #
 #  Model compiler options (except fcst related)
 #

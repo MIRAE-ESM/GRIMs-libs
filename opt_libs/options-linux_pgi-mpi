@@ -4,7 +4,7 @@ AS=as
 CP=cp
 RM=rm
 CD=cd
-CC=cc
+CC=pgcc
 CPP='cpp -traditional-cpp'
 MAKE=make
 MKDIR=mkdir
@@ -18,10 +18,10 @@ RUNENV=
 #
 F77=pgf90
 F77_FCST=mpif90
-INLINE="share.il"
-FC_FLAGS="-r8 -fastsse -DLINUX -byteswapio -module ../include -mcmodel medium"
+FC_FLAGS="-r8 -fast -DLINUX -byteswapio -module ../include -mcmodel medium -I\${NETCDF}/include -L\${NETCDF}/lib -lnetcdff -lnetcdf"
 EXTRAC_FLAG="${FC_FLAGS} -Mextract=size:20"
-EXTRA_FORT_FLAGS="-Minline=../share/fpvs.il,../share/fpvs0.il,../share/fpvsx.il,../share/fpvsx0.il -Minfo=inline"
+#INLINE="share.il"
+#EXTRA_FORT_FLAGS="-Minline=../share/fpvs.il,../share/fpvs0.il,../share/fpvsx.il,../share/fpvsx0.il -Minfo=inline"
 FORT_FLAGS="${FC_FLAGS}"
 LOAD_FLAGS="${FC_FLAGS}"
 EXTRA_LIBS=
@@ -29,8 +29,8 @@ EXTRA_LIBS=
 #  UTILS is normally same as the model options
 #
 UTIL_F77=pgf90
-UTIL_FORT_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
-UTIL_LOAD_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+UTIL_FORT_FLAGS="-r8 -fast -DLINUX -byteswapio -mcmodel medium"
+UTIL_LOAD_FLAGS="-r8 -fast -DLINUX -byteswapio -mcmodel medium"
 #
 W3LIB_F77=pgf90
 W3LIB_FORT_FLAGS="-DLINUX -byteswapio -mcmodel medium"
@@ -39,15 +39,15 @@ W3LIB_LOAD_FLAGS="-DLINUX -byteswapio -mcmodel medium"
 FFT99M=fft99m.o
 #
 BFLIB_F77=pgf90
-BFLIB_FORT_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
-BFLIB_LOAD_FLAGS="-r8 -fastsse -DLINUX -byteswapio -mcmodel medium"
+BFLIB_FORT_FLAGS="-r8 -fast -DLINUX -byteswapio -mcmodel medium"
+BFLIB_LOAD_FLAGS="-r8 -fast -DLINUX -byteswapio -mcmodel medium"
 #
 GSILIB_F77=pgf90
 GSILIB_CC=pgcc
-GSILIB_FORT_FLAGS="-O3 -fastsse -DLINUX -byteswapio"
-GSILIB_LOAD_FLAGS="-O3 -fastsse -DLINUX -byteswapio"
+GSILIB_FORT_FLAGS="-O3 -fast -DLINUX -byteswapio"
+GSILIB_LOAD_FLAGS="-O3 -fast -DLINUX -byteswapio"
 CFLAGS_BUFR="-O3 -DUNDERSCORE"
-FFLAGS_BUFR="-O3 -fastsse"
+FFLAGS_BUFR="-O3 -fast"
 CFLAGS="-O0 -DLINUX -DUNDERSCORE"
 CFLAGS2="-DLINUX -Dfunder -DFortranByte=char -DFortranInt=int -DFortranLlong='long long'"
 #

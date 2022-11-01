@@ -1248,7 +1248,8 @@
 !
 !$$$
 !
-   INTEGER, PARAMETER            ::  MXSIZE=2200000
+!mskoo   INTEGER, PARAMETER            ::  MXSIZE=2200000
+   INTEGER, PARAMETER            ::  MXSIZE=30000000
    INTEGER, PARAMETER            ::  MXSIZ3=MXSIZE*3
    INTEGER, PARAMETER            ::  MXSIZB=MXSIZE/8+6
    INTEGER, PARAMETER            ::  MXSIZI=MXSIZ3/4
@@ -1343,6 +1344,7 @@
      ELSE
      END IF
      IF (NPTS .GT. MXSIZE) THEN
+       print *,'npts,mxsize=',npts,mxsize
        PRINT *,' W3FI72 ERROR, GRID TOO LARGE FOR PACKER ARRAY',               &
                ' DIMENSIONS'
        JERR = 6

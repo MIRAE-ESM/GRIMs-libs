@@ -16,6 +16,8 @@
 # or implied warranty.
 
 SHELL = @SHELL@
+NETCDF_DIR = @NETCDF_DIR@
+LAPACK_DIR = @LAPACK_DIR@
 ETC_DIR = @ETC_DIR@
 
 SHELL = /bin/sh

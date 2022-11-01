@@ -17,28 +17,28 @@ FTASS='ln -fs'
 #
 F77=ifort
 F77_FCST=mpif90
-FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -module ../include -m64 -mcmodel medium -vec-report0"
+FORT_FLAGS="-r8 -O2 -fp-model precise -convert big_endian -module ../include -mcmodel medium -vec-report0"
 LOAD_FLAGS="${FORT_FLAGS}"
-OCN_FLAGS="-i4 -r8 -DLINUX -convert big_endian -fpe0 -traceback -ftrapuv -assume byterecl"
-OCN_FLAGS1="-i4 -DLINUX -convert big_endian -fpe0 -assume byterecl"
+OCN_FLAGS="-i4 -r8 -fp-model precise -convert big_endian -fpe0 -traceback -ftrapuv -assume byterecl"
+OCN_FLAGS1="-i4 -fp-model precise -convert big_endian -fpe0 -assume byterecl"
 OCN_CFAGS="-O"
 EXTRA_LIBS=
 #
 #  UTILS is normally same as the model options
 #
 UTIL_F77=ifort
-UTIL_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
-UTIL_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+UTIL_FORT_FLAGS="-r8 -O2 -fp-model precise -convert big_endian -mcmodel medium -vec-report0"
+UTIL_LOAD_FLAGS="-r8 -O2 -fp-model precise -convert big_endian -mcmodel medium -vec-report0"
 #
 W3LIB_F77=ifort
-W3LIB_FORT_FLAGS="-convert big_endian  -assume byterecl -vec-report0"
-W3LIB_LOAD_FLAGS="-convert big_endian  -assume byterecl -vec-report0"
+W3LIB_FORT_FLAGS="-fp-model precise -convert big_endian  -assume byterecl -vec-report0"
+W3LIB_LOAD_FLAGS="-fp-model precise -convert big_endian  -assume byterecl -vec-report0"
 #
 FFT99M=fft99m.o
 #
 BFLIB_F77=ifort
-BFLIB_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
-BFLIB_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -m64 -mcmodel medium -vec-report0"
+BFLIB_FORT_FLAGS="-r8 -O2 -fp-model precise -convert big_endian -mcmodel medium -vec-report0"
+BFLIB_LOAD_FLAGS="-r8 -O2 -fp-model precise -convert big_endian -mcmodel medium -vec-report0"
 #
 EXTRA_LIBS=
 #
@@ -64,8 +64,8 @@ ROMSSUP_FORT_FLAGS="-O2"
 ROMSSUP_LOAD_FLAGS="-Vaxlib"
 ROMS_FORT_FLAGS="-O2"
 ROMS_LOAD_FLAGS="-Vazlib"
-ROMSSUP_EXTRA_LIBS="-L\$(NETCDF_LIBDIR) -lnetcdf"
-ROMS_EXTRA_LIBS="-L\$(NETCDF_LIBDIR) -lnetcdf"
+ROMSSUP_EXTRA_LIBS="-L\$(NETCDF_DIR)/lib -lnetcdf"
+ROMS_EXTRA_LIBS="-L\$(NETCDF_DIR)/lib -lnetcdf"
 MODELSUP_EXTRA_LIBS=
 MDEPFLAGS="--cpp --fext=f90 --file=- --objdir=\$(SCRATCH_DIR)"
 HDF5_LIBDIR=

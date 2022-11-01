@@ -1,6 +1,9 @@
-EXECUTABLES = date.x chgdates.x chgdates_dfs.x ifdef.x ieee2grb_sst.x incdte.x \
-	inchour.x ieee2grb_sm.x ieee2grb.x prmap.x sigphys.x scnvrt.x rsigdiff.x \
-	interp_subr.o gribinterp.x scnvrt_gfs.x scnvrt_gsi.x sigdif.x sigadd.x
+EXECUTABLES = date.x chgdates.x chgdates_dfs.x ifdef.x incdte.x \
+	inchour.x prmap.x sigphys.x \
+	interp_subr.o gribinterp.x \
+	scnvrt.x scnvrt_gfs.x scnvrt_gsi.x \
+	sigdif.x sigadd.x rsigdiff.x \
+	ieee2grb.x ieee2grb_sm.x ieee2grb_sst.x ieee2grb_2d.x
 EXECMPI=mpiset.x rmpiset.x
 OBJS = ${EXECUTABLES:.x=.o}
 CEXECUTABLES = force_grib_date_mon wgrib maketim sdir force_grib_date_mon_fhr
@@ -13,6 +16,9 @@ RM = @RM@
 CD = @CD@
 CP = @CP@
 CHMOD = @CHMOD@
+
+NETCDF_DIR = @NETCDF_DIR@
+LAPACK_DIR = @LAPACK_DIR@
 
 F77 = @UTIL_F77@
 FORT_FLAGS = @FORT_FLAGS@

@@ -9,20 +9,34 @@
 #
 #    12-19-2000   song-you hong & masao kanamitsu     initial development
 #    03-19-2011   song-you hong & nml group           grims setup
+#    01-05-2018   myung-seo koo & soo ya bae          kim package development
 #
 #-------------------------------------------------------------------------------
 #
 #  Change the following variable 
 #
-#  MACHINE=[sgi/origin/ibmsp/sun/dec/hp/cray/t90/t3e/linux_pgi/linux_intel/x1e]
-#  MARCH=[single,thread,mpi,hybrid,mac]
-#  INSTITUTION=[sml,nml,kisti,kma,kesti,ncar,apcc,snu,noaa,kiaps,kiapsrt,haenam]
+#  MACHINE=[sgi/origin/ibmsp/sun/dec/hp/cray/t90/t3e/linux_pgi/linux_intel/x1e/mac_gnu]
+#  MARCH=[single,thread,mpi,hybrid]
+#  INSTITUTION=[nml,kisti,kma,kesti,ncar,apcc,snu,noaa,kiaps,kiapsrt,haenam,uri/mac]
 #
 MACHINE=linux_intel
-MARCH=hybrid
-INSTITUTION=snu
-USERNAME=sul
+MARCH=mpi
+INSTITUTION=hanul
+USERNAME=mskoo
 #
+# define library directory
+#
+NETCDF_DIR=`echo $NETCDF`
+#LAPACK_DIR=`echo $LAPACK`
+LAPACK_DIR=/usr/lib64
+if [ ! -f $NETCDF_DIR/lib/libnetcdff.so ]; then
+    echo "Specify NETCDF_DIR in configure-lib"
+    exit
+fi
+if [ ! -f $LAPACK_DIR/liblapack.so ]; then
+    echo "Specify LAPACK_DIR in configure-lib"
+    exit
+fi
 #
 #  If special options for compilation is needed, change below
 #
@@ -110,6 +124,8 @@ MODELIB_INCLUDE_DIR="-I.. -I../.."
 cat <<EOF >seddat_libs
 s%@MACHINE@%$MACHINE%g
 s%@SHELL@%$SHELL%g
+s%@NETCDF_DIR@%$NETCDF_DIR%g
+s%@LAPACK_DIR@%$LAPACK_DIR%g
 s%@AR@%$AR%g
 s%@AS@%$AS%g
 s%@CP@%$CP%g
@@ -187,6 +203,17 @@ else
 		fi
 	fi
 fi
+#
+# for mac_gnu
+#
+if [ $MACHINE = 'mac_gnu' ]; then
+    cd $currdir/lib; ln -sf w3lib_linux_gnu w3lib_mac_gnu
+    cd $currdir/etc; ln -sf util_linux_gnu util_mac_gnu
+    cd $currdir
+fi
+#
+# creadting makefiles
+#
 sed -f seddat_libs $makein >Makefile
 for file in $CONFIG_FILES
 do
@@ -215,6 +242,16 @@ do
 	sed -f seddat_libs $file >$fileo
 	chmod a+x $fileo
 done
+#
+# f90 to f
+#
+if [ $MACHINE = 'mac_gnu' ]; then
+    cd $currdir/lib/modelib        ; sed -i.bak -e 's/\.f90/\.f/g' -e 's/streamio.o//g' Makefile
+    cd $currdir/lib/ncaru/lib      ; sed -i.bak 's|#include <malloc.h>|#include <malloc/malloc.h>|g' cray.c
+    cd $currdir/etc/utils          ; sed -i.bak 's/\.f90/\.f/g' Makefile
+    cd $currdir/etc/util_mac_gnu   ; sed -i.bak -e 's/\.f90/\.f/g' -e 's/grmean.x//' -e 's/grvar.x//' Makefile
+    cd $currdir
+fi
 #
 #  Clean up
 #

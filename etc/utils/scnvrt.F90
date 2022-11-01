@@ -201,7 +201,7 @@
    print *,' '
    print *,'sigma file'
    print *,' '
-#if defined(DEC) 
+#ifdef DEC
    if(infmt(1:4).eq.'ieee') then
      open(unit=11,file='fort.11',form='unformatted',                           &
           convert='big_endian',status='old',err=920)
@@ -219,6 +219,10 @@
        print *,'error opening output sigma file'
        call abort
 931  continue
+   endif
+#else
+   if(infmt(1:4).eq.'ieee') then
+     open(unit=11,form='unformatted',convert='big_endian',status='old')
    endif
 #endif
 !
@@ -901,7 +905,7 @@
    print *,' '
    print *,'surface file'
    print *,' '
-#if defined(DEC) 
+#ifdef DEC
    if(infmt(1:4).eq.'ieee') then
      open(unit=12,file='fort.12',form='unformatted',                           &
           convert='big_endian',status='old',err=820)
@@ -919,6 +923,10 @@
      print *,'error opening output sfc file'
      call abort
   831   continue
+   endif
+#else
+   if(infmt(1:4).eq.'ieee') then
+     open(unit=12,form='unformatted',convert='big_endian',status='old')
    endif
 #endif
 !

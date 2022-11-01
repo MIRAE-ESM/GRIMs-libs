@@ -15,25 +15,27 @@ FTASS='ln -fs'
 #
 #  Model compiler options (except fcst related)
 #
-F77=ifort
-F77_FCST=mpif90
-FORT_FLAGS="-r8 -O2 -openmp -DLINUX -convert big_endian -module ../include -fp-model source"
+F77="ifort"
+F77_FCST="mpif90 -f90=ifort"
+FORT_FLAGS="-O2 -r8 -DLINUX -convert big_endian -qopenmp -module ../include -assume byterecl -mcmodel=medium -xCORE-AVX512"
 LOAD_FLAGS="${FORT_FLAGS}"
+OCN_FLAGS="-i4 -r8 -DLINUX -convert big_endian -fpe0 -ftrapuv -assume byterecl"
+OCN_FLAGS1="-i4 -DLINUX -convert big_endian -fpe0 -assume byterecl"
+OCN_CFAGS="-O"
 EXTRA_LIBS=
 #
 #  UTILS is normally same as the model options
 #
 UTIL_F77=ifort
-UTIL_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-UTIL_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
+UTIL_FORT_FLAGS="-O2 -r8 -DLINUX -convert big_endian -mcmodel=medium"
+UTIL_LOAD_FLAGS=$UTIL_FORT_FLAG
 #
 W3LIB_F77=ifort
-W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl -fp-model source"
-W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl -fp-model source"
+W3LIB_FORT_FLAGS="-convert big_endian -mcmodel=medium -xCORE-AVX512"
+W3LIB_LOAD_FLAGS=$W3LIB_FORT_FLAG
 #
 FFT99M=fft99m.o
 #
 BFLIB_F77=ifort
-BFLIB_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-BFLIB_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-#
+BFLIB_FORT_FLAGS="-O2 -r8 -DLINUX -convert big_endian -mcmodel=medium -xCORE-AVX512"
+BFLIB_LOAD_FLAGS=$BFLIB_FORT_FLAGS

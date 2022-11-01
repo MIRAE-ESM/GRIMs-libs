@@ -97,14 +97,12 @@ main(int ac,char **av)
 		fprintf(stderr,"Usage : %s YYYYMMDDhhmm [-h/d] diff(YYYYMMDDhhmm)\n",av[0]);
 		exit(1);
 	}
-/*
 	if (ttt[0]>=2038)
 	{
 		fprintf(stderr,"This program could not be run with year>=2038\n");
 		fprintf(stderr,"Please check Your O/S and modify sources of this\n");
 		exit(1);
 	}
-*/
 
 	len=strlen(diff_str);
 	if (len%2 != 0)

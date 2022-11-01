@@ -12,27 +12,28 @@ CHMOD=chmod
 ECHO=echo
 FTNID=fort.
 FTASS='ln -fs'
+RUNENV=
 #
 #  Model compiler options (except fcst related)
 #
 F77=ifort
-FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -module ../include -fp-model source"
+FORT_FLAGS="-r8 -O2 -fp-model precise -diag-disable 10212 -convert big_endian -module ../include -mcmodel medium -vec-report0 -I\${NETCDF_DIR}/include -L\${NETCDF_DIR}/lib -lnetcdff -L\${LAPACK_DIR} -llapack -lblas"
 LOAD_FLAGS="${FORT_FLAGS}"
 EXTRA_LIBS=
 #
 #  UTILS is normally same as the model options
 #
 UTIL_F77=ifort
-UTIL_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-UTIL_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
+UTIL_FORT_FLAGS="-r8 -O2 -fp-model precise -diag-disable 10212 -convert big_endian -mcmodel medium -vec-report0"
+UTIL_LOAD_FLAGS="-r8 -O2 -fp-model precise -diag-disable 10212 -convert big_endian -mcmodel medium -vec-report0"
 #
 W3LIB_F77=ifort
-W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl -fp-model source"
-W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl -fp-model source"
+W3LIB_FORT_FLAGS="-fp-model precise -diag-disable 10212 -convert big_endian -assume byterecl -vec-report0"
+W3LIB_LOAD_FLAGS="-fp-model precise -diag-disable 10212 -convert big_endian -assume byterecl -vec-report0"
 #
 FFT99M=fft99m.o
 #
 BFLIB_F77=ifort
-BFLIB_FORT_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
-BFLIB_LOAD_FLAGS="-r8 -O2 -DLINUX -convert big_endian -fp-model source"
+BFLIB_FORT_FLAGS="-r8 -O2 -fp-model precise -diag-disable 10212 -convert big_endian -mcmodel medium -vec-report0"
+BFLIB_LOAD_FLAGS="-r8 -O2 -fp-model precise -diag-disable 10212 -convert big_endian -mcmodel medium -vec-report0"
 #

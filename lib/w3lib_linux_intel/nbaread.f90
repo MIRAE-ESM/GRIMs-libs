@@ -27,7 +27,8 @@
    character  ::  bbuf(*)
    character  ::  a(nb)
 
-   if(ib.gt.isize) then
+!   if(ib.gt.isize) then
+   if(ib+8.gt.isize) then
       ka=0
       return
    endif

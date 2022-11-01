@@ -1,0 +1,51 @@
+SHELL=/bin/sh
+AR=ar
+AS=as
+CP=cp
+RM=rm
+CD=cd
+CC=gcc
+CPP='cpp -traditional-cpp'
+MAKE=make
+MKDIR=mkdir
+CHMOD=chmod
+ECHO=echo
+FTNID=fort.
+FTASS='ln -fs'
+RUNENV=
+#
+#  Model compiler options (except fcst related)
+#
+COMMODULE="-ffree-form -fconvert=big-endian"
+F77=gfortran
+F77_FCST="mpif90"
+FC_FLAGS="-fdefault-real-8 -O2 -ffree-form -fconvert=big-endian -J../include -I\${NETCDF_DIR}/include -L\${NETCDF_DIR}/lib -lnetcdff -L\${LAPACK_DIR} -llapack -lblas"
+FORT_FLAGS="${FC_FLAGS}"
+LOAD_FLAGS="${FC_FLAGS}"
+EXTRA_LIBS=
+#
+#  UTILS is normally same as the model options
+#
+UTIL_F77=gfortran
+UTIL_FORT_FLAGS="-fdefault-real-8 -O2 -ffree-form -fconvert=big-endian"
+UTIL_LOAD_FLAGS="-fdefault-real-8 -O2 -ffree-form -fconvert=big-endian"
+#
+W3LIB_F77=gfortran
+W3LIB_FORT_FLAGS="-ffree-form -fconvert=big-endian -fno-range-check"
+W3LIB_LOAD_FLAGS="-ffree-form -fconvert=big-endian -fno-range-check"
+#
+FFT99M=fft99m.o
+#
+BFLIB_F77=gfortran
+BFLIB_FORT_FLAGS="-fdefault-real-8 -O2 -ffree-form -fconvert=big-endian"
+BFLIB_LOAD_FLAGS="-fdefault-real-8 -O2 -ffree-form -fconvert=big-endian"
+#
+GSILIB_F77=gfortran
+GSILIB_CC=pgcc
+GSILIB_FORT_FLAGS="-O2 -ffree-form -fconvert=big-endian"
+GSILIB_LOAD_FLAGS="-O2 -ffree-form -fconvert=big-endian"
+CFLAGS_BUFR="-DUNDERSCORE"
+FFLAGS_BUFR="-O2"
+CFLAGS="-O0 -ffree-form -DUNDERSCORE"
+CFLAGS2="-ffree-form -Dfunder -DFortranByte=char -DFortranInt=int -DFortranLlong='long long'"
+#

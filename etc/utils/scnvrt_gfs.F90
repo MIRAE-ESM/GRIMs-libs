@@ -47,8 +47,9 @@
 !
 !  output array
 !
-   integer              ::  idate(4)
+   integer              ::  idate(4),itmp(30)
    real                 ::  akmdl(65),bkmdl(64)
+   real*4               ::  rtmp(20)
    real, allocatable    ::  si(:),sl(:)
    real, allocatable    ::  array(:)
    real, allocatable    ::  grid(:,:)
@@ -84,6 +85,12 @@
    character(len=3)     ::  gsm0rsm
    character(len=4)     ::  sfcftyp
    character(len=4)     ::  cgfs,csfc
+   character(len=8)     ::  cnemsio(3)
+   character(len=16)    ::  ctmp(20)
+   character(len=16),allocatable    ::  cvar(:)
+   integer          ,allocatable    ::  ivar(:)
+   real*4           ,allocatable    ::  rvar(:)
+   real*4           ,allocatable    ::  r4lon(:),r4lat(:)
    character(len=8)     ::  infmt,ofmt
    data newyr,newmo,newdy,newhr,fhnew/-1,-1,-1,-1,-1./
    data infmt,ofmt/'bin','bin'/
@@ -236,6 +243,10 @@ if (issig.eq.1) then
    print *,' '
    print *,'sigma file'
    print *,' '
+   ! open for ieee format
+   if(infmt(1:4).eq.'ieee') then
+     open(unit=11,form='unformatted',convert='big_endian',status='old')
+   endif
 !
 !  1.1 first label record
 !
@@ -452,21 +463,22 @@ if (issfc.eq.1) then
    print *,'surface file'
    print *,' '
 !
+   if(infmt(1:4).eq.'ieee') then
+     open(unit=12,form='unformatted',convert='big_endian',status='old')
+   endif
+!
 ! 2.1  label
 !
-     read(12)  cgfs,csfc,ivs,nhead,ndata,nresv
-     print *, 'sfc.. on85lab ', on85lab
-     print *, 'sfc.. cgfs, csfc ', cgfs, csfc
+   print *, 'sfc.. on85lab ', on85lab
+   read(12)  cgfs,csfc,ivs,nhead,ndata,nresv
+!mskoo20170913
+   if(trim(cgfs).eq.'GFS') then  ! for GFS before 2017071912
+!mskoo20170913
+     print *, 'sfc.. cgfs,csfc ', cgfs,csfc
      print *, 'sfc.. ivs ', ivs
      print *, 'sfc.. nhead ', nhead
      print *, 'sfc.. ndata ', ndata
      print *, 'sfc.. nresv ', nresv
-
-   if(ofmt(1:3).eq.'bin') then
-     write(52) ' emc ncep surface file          '
-   elseif(ofmt(1:4).eq.'ieee') then
-     write(52) ' emc ncep surface file          '
-   endif
 !
 ! 2.2 second header
 !
@@ -482,10 +494,82 @@ if (issfc.eq.1) then
      write(6,*)  'sfc.. lpl ', lpl
      read(12) 
      fhour=r4fhour
-   if (fhour.le.1.) fhour=0.
+     if (fhour.le.1.) fhour=0.
      do i=1,4
        idate(i)=i4date(i)
      enddo
+
+   else   ! for NEMSIO (after 2017071912)
+
+     fhour=0.
+     rewind 12
+     nn=1
+     111 continue
+     read(12,end=222)
+     nn=nn+1
+     goto 111
+     222 continue
+!    print *,'total lines=',nn
+     nvar3d=3
+     nvar2d=32
+     nlev=4
+     nrec=nvar3d*nlev+nvar2d
+     nskip=nn-nrec-1
+!    print *,'skip=',nskip
+     rewind 12
+!     do k = 1,nskip
+!       read(12)
+!     enddo
+     read(12) cnemsio,ivs,nhead,nn,nresv
+       print *, 'sfc.. cnemsio ', cnemsio
+       print *, 'sfc.. ivs ', ivs
+       print *, 'sfc.. nhead ', nhead
+       print *, 'sfc.. nn ', nn
+       print *, 'sfc.. nresv ', nresv
+     read(12) ndata,i4date,itmp(1:8),i4dim,j4dim,k4dim,itmp(9),l4soil,itmp(10:11),i4realf,itmp(12:20)
+       print *, 'sfc.. ndata ', ndata
+       print *, 'sfc.. idate ', i4date
+!       print *, 'sfc.. itmp(1:8) ',itmp(1:8)
+       print *, 'sfc.. idim,jdim ',i4dim,j4dim
+       print *, 'sfc.. kdim,lsoil ',k4dim,l4soil
+       print *, 'sfc.. irealf ',i4realf
+!       print *, 'sfc.. itmp ',itmp
+!       print *, 'sfc.. rtmp ',rtmp
+!       print *, 'sfc.. ctmp ',ctmp
+     allocate(ivar(ndata))
+     allocate(rvar(ndata))
+     allocate(r4lon(i4dim))
+     allocate(r4lat(j4dim))
+     allocate(cvar(ndata))
+     read(12) cvar      !; print *,'3=',cvar   ! variable name
+     read(12) cvar      !; print *,'4=',cvar   ! variable location
+     read(12) ivar      !; print *,'5=',ivar   ! variable i-th layer
+     read(12) rvar      !; print *,'6=',rvar   ! 0.000
+     read(12) r4lat     !; print *,'7=',r4lat  ! latitude
+     read(12) r4lon     !; print *,'8=',r4lon  ! longitude
+     read(12) itmp(1:7) !; print *,'9=',itmp   ! 9
+     read(12) ctmp(1:2) !; print *,'10=',ctmp  ! latr,lonr
+     read(12) itmp(1:2) !; print *,'11=',itmp  ! 1536,3072
+     read(12) ctmp(1:3) !; print *,'12=',ctmp  ! IDAT,LPL,FCSTDATA12
+     read(12) itmp(1:3) !; print *,'13=',itmp  ! 4,768,7
+     read(12) itmp(1:3) !; print *,'14=',itmp  ! 18.9,10
+     read(12) lpl       !; print *,'15=',lpl   ! number of reduced grid
+       print *, 'sfc.. lpl ', lpl
+     read(12) itmp(1:7) !; print *,'16=',itmp  ! 2017,9,11,0,0,0,100
+     read(12) ctmp(1:1) !; print *,'17=',ctmp  ! zsoil 
+     read(12) itmp(1:1) !; print *,'18=',itmp  ! 4
+     read(12) rtmp(1:4) !; print *,'19=',rtmp  ! -0.1,-0.4,-0.1,-0.2
+!
+     idate(4)=i4date(1)
+     idate(2)=i4date(2)
+     idate(3)=i4date(3)
+     idate(1)=i4date(4)
+     ! fhour=r4fhour
+     fhour=0.
+   endif
+!
+! new date
+!
    if(newyr.ge.0 ) idate(4)=newyr
    if(newmo.ge.0 ) idate(2)=newmo
    if(newdy.ge.0 ) idate(3)=newdy
@@ -501,9 +585,13 @@ if (issfc.eq.1) then
         idate(4)=idate(4)+1900
      endif
    endif
+!
    if(ofmt(1:3).eq.'bin') then
+     write(52) ' emc ncep surface file          '
      write(52) fhour,idate
      print *,  fhour,idate
+   elseif(ofmt(1:4).eq.'ieee') then
+     write(52) ' emc ncep surface file          '
    endif
 !
 ! 2.3 body
@@ -525,122 +613,135 @@ if (issfc.eq.1) then
      allocate (r4grid(ijdim,mxlv))
    endif
 !
-   read(12,end=909) (r4slmsk(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4orog(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4tsea(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4sheleg(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4tg3(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4zorl(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4alvsf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4alvwf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4alnsf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4alnwf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4vfrac(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4canopy(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4f10m(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4t2m(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4q2m(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4vtype(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4stype(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4facsf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4facwf(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4uustar(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4ffmm(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4ffhh(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4hice(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4fice(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4tisfc(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4tprcp(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4srflag(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4snwdph(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4shdmin(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4shdmax(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4slope(ij,1),ij=1,ijdim)
-   read(12,end=909) (r4snoalb(ij,1),ij=1,ijdim)
-   do l=1,4
-     read(12,end=909) (r4stc(ij,l),ij=1,ijdim)
-   enddo
-   write (6,*) 'stc ...'
-   do l=1,4
-     read(12,end=909) (r4smc(ij,l),ij=1,ijdim)
-   enddo
-   write (6,*) 'smc ...'
-   do l=1,4
-     read(12,end=909) (r4slc(ij,l),ij=1,ijdim)
-   enddo
-   write (6,*) 'slc ...'
+   if(trim(cgfs).eq.'GFS') then  ! for GFS before 2017071912
+     read(12,end=909) (r4slmsk(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4orog(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tsea(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4sheleg(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tg3(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4zorl(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alvsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alvwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alnsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alnwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4vfrac(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4canopy(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4f10m(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4t2m(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4q2m(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4vtype(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4stype(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4facsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4facwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4uustar(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4ffmm(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4ffhh(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4hice(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4fice(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tisfc(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tprcp(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4srflag(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4snwdph(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4shdmin(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4shdmax(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4slope(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4snoalb(ij,1),ij=1,ijdim)
+     do l=1,4    ! stc
+       read(12,end=909) (r4stc(ij,l),ij=1,ijdim)
+     enddo
+     do l=1,4    ! smc
+       read(12,end=909) (r4smc(ij,l),ij=1,ijdim)
+     enddo
+     do l=1,4    ! slc
+       read(12,end=909) (r4slc(ij,l),ij=1,ijdim)
+     enddo
 
-! ts
-  grid(:,1)=r4tsea(:,1)  ; write(52) grid ; grid=zero
-! smc
-  grid(:,:)=r4smc(:,:) ; write(52) grid ; grid=zero
-! sno
-  grid(:,1)=r4sheleg(:,1) ; write(52) grid ; grid=zero
-! stc
-  grid(:,:)=r4stc(:,:) ; write(52) grid ; grid=zero
-! tg3
-  grid(:,1)=r4tg3(:,1) ; write(52) grid ; grid=zero
-! z0
-  grid(:,1)=r4zorl(:,1) ; write(52) grid ; grid=zero
-! cv
-  grid(:,1)=zero(:,1) ; write(52) grid ; grid=zero 
-! cvb
-  grid(:,1)=zero(:,1) ; write(52) grid ; grid=zero 
-! cvt
-  grid(:,1)=zero(:,1) ; write(52) grid ; grid=zero 
-! alb
-  grid(:,1)=r4alvsf(:,1) ; grid(:,2)=r4alvwf(:,1) 
-  grid(:,3)=r4alnsf(:,1) ; grid(:,4)=r4alnwf(:,1) 
-  write(52) grid ; grid=zero
-! sli
-  grid(:,1)=r4slmsk(:,1) ; write(52) grid ; grid=zero 
-! vfrac
-  grid(:,1)=r4vfrac(:,1) ; write(52) grid ; grid=zero 
-! canop
-  grid(:,1)=r4canopy(:,1) ; write(52) grid ; grid=zero 
-! f10m
-  grid(:,1)=r4f10m(:,1) ; write(52) grid ; grid=zero 
-! vegtyp
-  grid(:,1)=r4vtype(:,1) ; write(52) grid ; grid=zero
-! soiltyp
-  grid(:,1)=r4stype(:,1) ; write(52) grid ; grid=zero 
-! albf
-  grid(:,1)=r4facsf(:,1) ; grid(:,2)=r4facwf(:,1)
-  write(52) grid ; grid=zero 
-! ustar
-  grid(:,1)=r4uustar(:,1) ; write(52) grid ; grid=zero
-! fm
-  grid(:,1)=r4ffmm(:,1) ; write(52) grid ; grid=zero
-! fh
-  grid(:,1)=r4ffhh(:,1) ; write(52) grid ; grid=zero
-! prcp
-  grid(:,1)=r4tprcp(:,1) ; write(52) grid ; grid=zero 
-! srflag
-  grid(:,1)=r4srflag(:,1) ; write(52) grid ; grid=zero 
-! snodph
-  grid(:,1)=r4snwdph(:,1) ; write(52) grid ; grid=zero 
-! slc
-  grid(:,:)=r4slc(:,:) ; write(52) grid ; grid=zero
-! shdmin
-  grid(:,1)=r4shdmin(:,1) ; write(52) grid ; grid=zero 
-! shdmax
-  grid(:,1)=r4shdmax(:,1) ; write(52) grid ; grid=zero 
-! slope
-  grid(:,1)=r4slope(:,1) ; write(52) grid ; grid=zero 
-! snoalb
-  grid(:,1)=r4snoalb(:,1) ; write(52) grid ; grid=zero
-! omld
-  grid(:,1)=50.           ; write(52) grid ; grid=zero
-! paer(5)
-  write(52) grid
-! kprfi
-  write(52) grid
-! denni(2)
-  write(52) grid
-! idxci(5)
-  write(52) grid
-! cmixi(5)
-  write(52) grid
+   else   ! for NEMSIO (after 2017071912)
+
+     read(12,end=909) (r4alnsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alnwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alvsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4alvwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4canopy(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4srflag(ij,1),ij=1,ijdim)     ! crainsfc
+     read(12,end=909) (r4f10m(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4facsf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4facwf(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4ffhh(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4ffmm(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4uustar(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4fice(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4hice(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4slmsk(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4orog(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4snoalb(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4zorl(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4shdmax(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4shdmin(ij,1),ij=1,ijdim)
+     do l=1,4    ! slc
+       read(12,end=909) (r4slc(ij,l),ij=1,ijdim)
+     enddo
+     read(12,end=909) (r4slope(ij,1),ij=1,ijdim)
+     do l=1,4    ! smc
+       read(12,end=909) (r4smc(ij,l),ij=1,ijdim)
+     enddo
+     read(12,end=909) (r4snwdph(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4stype(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4q2m(ij,1),ij=1,ijdim)
+     do l=1,4    ! stc
+       read(12,end=909) (r4stc(ij,l),ij=1,ijdim)
+     enddo
+     read(12,end=909) (r4tg3(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tisfc(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4t2m(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tsea(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4tprcp(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4vfrac(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4vtype(ij,1),ij=1,ijdim)
+     read(12,end=909) (r4sheleg(ij,1),ij=1,ijdim)
+
+   endif
+
+   grid(:,1)=r4tsea(:,1)   ; write(52) grid ; grid=zero   ! ts
+   grid(:,:)=r4smc(:,:)    ; write(52) grid ; grid=zero   ! smc
+   grid(:,1)=r4sheleg(:,1) ; write(52) grid ; grid=zero   ! sno
+   grid(:,:)=r4stc(:,:)    ; write(52) grid ; grid=zero   ! stc
+   grid(:,1)=r4tg3(:,1)    ; write(52) grid ; grid=zero   ! tg3
+   grid(:,1)=r4zorl(:,1)   ; write(52) grid ; grid=zero   ! z0
+   grid(:,1)=zero(:,1)     ; write(52) grid ; grid=zero   ! cv
+   grid(:,1)=zero(:,1)     ; write(52) grid ; grid=zero   ! cvb
+   grid(:,1)=zero(:,1)     ; write(52) grid ; grid=zero   ! cvt
+   grid(:,1)=r4alvsf(:,1)                                 ! alb1
+   grid(:,2)=r4alvwf(:,1)                                 ! alb2
+   grid(:,3)=r4alnsf(:,1)                                 ! alb3
+   grid(:,4)=r4alnwf(:,1)                                 ! alb4
+                             write(52) grid ; grid=zero
+   grid(:,1)=r4slmsk(:,1)  ; write(52) grid ; grid=zero   ! sli
+   grid(:,1)=r4vfrac(:,1)  ; write(52) grid ; grid=zero   ! vfrac
+   grid(:,1)=r4canopy(:,1) ; write(52) grid ; grid=zero   ! canop
+   grid(:,1)=r4f10m(:,1)   ; write(52) grid ; grid=zero   ! f10m
+   grid(:,1)=r4vtype(:,1)  ; write(52) grid ; grid=zero   ! vegtyp
+   grid(:,1)=r4stype(:,1)  ; write(52) grid ; grid=zero   ! soiltyp
+   grid(:,1)=r4facsf(:,1)                                 ! albf1
+   grid(:,2)=r4facwf(:,1)                                 ! albf2
+                             write(52) grid ; grid=zero 
+   grid(:,1)=r4uustar(:,1) ; write(52) grid ; grid=zero   ! ustar
+   grid(:,1)=r4ffmm(:,1)   ; write(52) grid ; grid=zero   ! fm
+   grid(:,1)=r4ffhh(:,1)   ; write(52) grid ; grid=zero   ! fh
+   grid(:,1)=r4tprcp(:,1)  ; write(52) grid ; grid=zero   ! prcp
+   grid(:,1)=r4srflag(:,1) ; write(52) grid ; grid=zero   ! srflag
+   grid(:,1)=r4snwdph(:,1) ; write(52) grid ; grid=zero   ! snodph
+   grid(:,:)=r4slc(:,:)    ; write(52) grid ; grid=zero   ! slc
+   grid(:,1)=r4shdmin(:,1) ; write(52) grid ; grid=zero   ! shdmin
+   grid(:,1)=r4shdmax(:,1) ; write(52) grid ; grid=zero   ! shdmax
+   grid(:,1)=r4slope(:,1)  ; write(52) grid ; grid=zero   ! slope
+   grid(:,1)=r4snoalb(:,1) ; write(52) grid ; grid=zero   ! snoalb
+   grid(:,1)=50.           ; write(52) grid ; grid=zero   ! omld
+                             write(52) grid               ! paer(5)
+                             write(52) grid               ! xprfi
+                             write(52) grid               ! denni(2)
+                             write(52) grid               ! idxci(5)
+                             write(52) grid               ! cmixi(5)
 !
 ! issfc.eq.1
 !

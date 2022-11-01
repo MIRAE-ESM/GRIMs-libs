@@ -92,11 +92,11 @@
 091:Ice concentration (ice=1; no ice=0)   :1/0           :ICEC
 092:Ice thickness                         :m             :ICETK
 093:Direction of ice drift                :degree        :DICED
-094:Speed of ice drift                    :m/s           :SICED
-095:u of ice drift                        :m/s           :UICE
-096:v of ice drift                        :m/s           :VICE
-097:Ice growth                            :m             :ICEG
-098:Ice divergence                        :/s            :ICED
+094:SO2 concentration                     :kg/dryair-kg  :SO2  
+095:SO4 concentration                     :kg/dryair-kg  :SO4 
+096:Hydrophobic OC concentration          :kg/dryair-kg  :OC1 
+097:Hydrophilic OC concentration          :kg/dryair-kg  :OC2 
+098:Sea salt concentration                :kg/dryair-kg  :SEA 
 099:Snow melt                             :kg/m**2       :SNOM
 100:Sig height of wind waves and swell    :m             :HTSGW
 101:Direction of wind waves               :degree        :WVDIR
@@ -116,7 +116,7 @@
 115:Long wave radiation                   :W/m**2        :LWAVR
 116:Short wave radiation                  :W/m**2        :SWAVR
 117:Global radiation                      :W/m**2        :GRAD
-118:Thermal surface roughness             :cm            :SFCRT
+118:Thermal surface roughness             :m             :SFCRT
 119:Perturbation of temperature           :K             :TPERT
 120:Hydrostatic temperature               :K             :HYDTMP
 121:Latent heat flux                      :W/m**2        :LHTFL
@@ -143,7 +143,7 @@
 142:Categorical ice pellets (yes=1;no=0)  :non-dim       :CICEP
 143:Categorical snow (yes=1;no=0)         :non-dim       :CSNOW
 144:Volumetric soil moisture content      :fraction      :SOILW
-145:Potential evaporation rate            :w/m**/        :PEVPR
+145:Potential evaporation rate            :kg/m**2/s     :PEVPR
 146:Cloud work function                   :J/Kg          :CWORK
 147:Zonal gravity wave stress (GWDO)      :N/m**2        :UGWDO
 148:Meridional gravity wave stress (GWDO) :N/m**2        :VGWDO
@@ -157,7 +157,7 @@
 156:Convective inhibition                 :J/kg          :CIN
 157:Convective Available Potential Energy :J/kg          :CAPE
 158:Turbulent kinetic energy              :J/kg          :TKE
-159:Condensation pressure of lifted parcel:Pa            :CONDP
+159:3-D prognostic cloudiness             :              :CLD
 160:Clear sky upward solar flux           :W/m**2        :CSUSF
 161:Clear sky downward solar flux         :W/m**2        :CSDSF
 162:Clear sky upward long wave flux       :W/m**2        :CSULF
@@ -178,7 +178,7 @@
 177:Longitude                             :degree        :NLON
 178:Mass weighted u                       :gm/m*K*s      :UMAS
 179:Mass weighted v                       :gm/m*K*s      :VMAS
-180:Canopy evaporation                    :kg/m**2      :CEVAP
+180:Actual evaporation rate               :kg/m**2/s     :EVPR
 181:Number concentration of CCN           :/m**3         :NCCN
 182:Number concentration of clouds        :/m**3         :NC
 183:Number concentration of Rain drops    :/m**3         :NR

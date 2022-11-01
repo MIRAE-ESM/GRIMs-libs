@@ -5,12 +5,16 @@ F77 = @F77@
 FORT_FLAGS = @FORT_FLAGS@
 FTNID = @FTNID@
 
+NETCDF_DIR = @NETCDF_DIR@
+LAPACK_DIR = @LAPACK_DIR@
 CON_DIR = @CON_DIR@
 
 ZFILES = clim.deepsoil.grib \
 				clim.glacier.grib \
 				clim.ice.grib \
 				clim.ice.r2.1979-1998.grib \
+			    clim.icec.grib \
+			    clim.icetk.grib \
 				clim.matthewalb.grib \
 				clim.maxice.grib \
 				clim.sibalbedo.grib \
@@ -42,7 +46,6 @@ ZFILES = clim.deepsoil.grib \
 				clim.slptyp.grib \
 				clim.snoalb.grib \
 				slope.grib \
-				clim.omld.grib \
 				aerdefb.asc \
 				gcmo3.asc \
 				mdlv1e.asc \
@@ -52,15 +55,19 @@ ZFILES = clim.deepsoil.grib \
 				cns_348_490670.asc \
 				cns_348_490850.asc \
 				cns_348_670850.asc \
-				o3prod.clim.asc \
-				o3loss.clim.asc \
 				snowanl.781201.grib \
 				slmsk1x1.asc \
 				slmsk1x1.ieee \
 				standard_atm.asc \
 				verlev.asc \
-				usgs30s.ieee \
-				statsgo30s.ieee
+				stype.43200x21600.nc \
+				snoalb.7200x3600.nc \
+				clim.omld.1x1.nc \
+				MODISalb.nc \
+				MACC.nc \
+				co2_gosat.nc \
+				ozone_cams.nc \
+				greenfrac_fpar_modis_30s.nc
 
 IFILES = sig.anl.2001071400.ieee \
 			sig.anl.2001071406.ieee \
@@ -84,11 +91,12 @@ IFILES = sig.anl.2001071400.ieee \
 			sfc.anl.1996050300.ieee \
 			sfc.anl.1996050400.ieee \
 			sfc.anl.1996050500.ieee \
-                        gisst22.1992.daily \
+			gisst22.1992.daily \
 			gisst22.1996.daily \
-                        gisst22.1997.daily \
+			gisst22.1997.daily \
 			gisst22.2000.daily \
-                        gisst22.2001.daily \
+			gisst22.2001.daily \
+			gisst22.2003.daily \
 			gisst22.1997_0607.daily
 
 TFILES = E020N40 E020S10.slm E060S10 E100N40.slm E120S60 E140N90.slm \
@@ -123,26 +131,25 @@ ldas.soil.ds.grib     ldas.soil.wcr.grib        ldas.veg.rt3.grib \
 ldas.soil.dsmax.grib  ldas.soil.wpwp.grib       ldas.veg.vegcov.grib \
 ldas.soil.expt.grib   ldas.soil.ws.grib \
 ldas.soil.ksat.grib   ldas.veg1typ.vegcov.grib  \
-glob.aerosol.paer.grib glob.aerosol.cmix.grib glob.aerosol.denn.grib \
-glob.aerosol.idxc.grib glob.aerosol.kprf.grib \
 flwdirGSWP2.hlf.asc
 
-FILES = @CON_DIR@/top8m_avg.20i4.asc \
-				@CON_DIR@/top8m_max.20i4.asc \
-				@CON_DIR@/top8m_slm.80i1.asc \
-				@CON_DIR@/top8m_var.20i4.asc \
-				@CON_DIR@/cns_348_490850.asc \
-				@CON_DIR@/cns_348_670850.asc \
-				@CON_DIR@/tune.t42l18.amip.ewmrg
+FILES = @CON_DIR@/top8m_avg.bin      \
+				@CON_DIR@/top8m_max.bin      \
+				@CON_DIR@/top8m_slm.bin      \
+				@CON_DIR@/top8m_var.bin      \
+				@CON_DIR@/top4m_avg.bin      \
+				@CON_DIR@/top4m_max.bin      \
+				@CON_DIR@/top4m_slm.bin      \
+				@CON_DIR@/top4m_var.bin      \
+				@CON_DIR@/top2m_avg.bin      \
+				@CON_DIR@/top2m_max.bin      \
+				@CON_DIR@/top2m_slm.bin      \
+				@CON_DIR@/top2m_var.bin     
 
 R_ZFILES = clim.vegfrac20m.grib \
 					clim.soiltype20m.grib \
 					clim.vegtype20m.grib
 
-R_FILES = @CON_DIR@/top4m_avg.20i4.asc \
-				@CON_DIR@/top4m_max.20i4.asc \
-				@CON_DIR@/top4m_slm.80i1.asc \
-				@CON_DIR@/top4m_var.20i4.asc
 
 con : ${FILES} ${ZFILES} ${IFILES}
 
@@ -151,11 +158,6 @@ rcon : ${R_FILES} ${R_ZFILES}
 tcon : ${TFILES}
 
 vcon : ${VFILES}
-
-@CON_DIR@/tune.t42l18.amip.ewmrg : @CON_DIR@/tune.t42l18.amip.ewmrg.asc
-	if [ @MACHINE@ != x1e ] ; then \
-		./tune.sh ; \
-	fi
 
 G_FILES = @CON_DIR@/landsea \
 					@CON_DIR@/eofs28126 \
@@ -202,13 +204,9 @@ gcon : ${G_FILES} ${G_ZFILES}
 	fi
 
 clean :
-	- rm -f @CON_DIR@/tune.t42l18.amip.ewmrg
-	- rm -f @CON_DIR@/tune.t62l28.reanl.ewmrg
 	- rm -rf rii_files
 clean_all :
 	- rm -f @CON_DIR@/*.grib  @CON_DIR@/*.asc ${CON_DIR}/*.bufr
-	- rm -f @CON_DIR@/tune.t42l18.amip.ewmrg
-	- rm -f @CON_DIR@/tune.t62l28.reanl.ewmrg
 	- rm -f @CON_DIR@/*.ieee @CON_DIR@/*.bin @CON_DIR@/*.daily
 	- rm -f @CON_DIR@/flwdirGSWP2.hlf.asc
 	- rm -rf rii_files
@@ -217,8 +215,4 @@ clean_all :
 .SUFFIXES : .Z
 
 .Z:
-	if [ @MACHINE@ = mac ] ; then \
-		zcat $< >$*  || exit 8 ; \
-	else \
-		gunzip -c $< >$*  || exit 8 ; \
-	fi
+	gunzip -c $< >$*  || exit 8 ; \

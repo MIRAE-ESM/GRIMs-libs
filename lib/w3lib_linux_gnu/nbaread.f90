@@ -34,7 +34,11 @@
    endif
    ka=min(nb,isize)
    do i=1,ka
-      a(i)=bbuf(i+ib-1)
+      if(i+ib-1.eq.0) then
+        a(i)=bbuf(i+ib)
+      else
+        a(i)=bbuf(i+ib-1)
+      endif
       !  a(i)=bbuf(i+ib)
    enddo
 !
