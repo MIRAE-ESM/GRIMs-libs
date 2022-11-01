@@ -17,7 +17,7 @@ FTASS='ln -fs'
 #
 F77=ifort
 F77_FCST=mpif90
-FORT_FLAGS="-r8 -O2 -convert big_endian -module ../include -mcmodel medium -I\${NETCDF_DIR}/include -L\${NETCDF_DIR}/lib -lnetcdff -lnetcdf -L\${LAPACK_DIR} -llapack -lblas -fp-model source"
+FORT_FLAGS="-r8 -O2 -convert big_endian -module ../include -mcmodel medium -I\${NETCDF_DIR}/include -L\${NETCDF_DIR}/lib -lnetcdff -lnetcdf -L\${LAPACK_DIR} -llapack -lblas -fp-model source -qopenmp"
 LOAD_FLAGS="${FORT_FLAGS}"
 EXTRA_LIBS=
 #

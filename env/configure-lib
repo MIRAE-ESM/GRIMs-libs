@@ -21,8 +21,8 @@
 #
 MACHINE=linux_intel
 MARCH=mpi
-INSTITUTION=hanul
-USERNAME=mskoo
+INSTITUTION=snu
+USERNAME=sul
 #
 # define library directory
 #
