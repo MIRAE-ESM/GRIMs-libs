@@ -203,6 +203,15 @@ gcon : ${G_FILES} ${G_ZFILES}
 			./divterrs.sh  || exit 8; \
 	fi
 
+ozone_cams.nc.Z :
+	cat ozone_cams.nc.Z_* > ozone_cams.nc.Z
+MODISalb.nc.Z :
+	cat MODISalb.nc.Z_* > MODISalb.nc.Z
+MACC.nc.Z :
+	cat MACC.nc.Z_* > MACC.nc.Z
+greenfrac_fpar_modis_30s.nc.Z :
+	cat greenfrac_fpar_modis_30s.nc.Z_* > greenfrac_fpar_modis_30s.nc.Z
+
 clean :
 	- rm -rf rii_files
 clean_all :

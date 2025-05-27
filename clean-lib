@@ -2,10 +2,12 @@
 
 make clean
 
-rm -f Makefile
+find . -type f -name Makefile -delete
+
 rm -f con/MACC.nc
+rm -f con/MACC.nc.Z
 rm -f con/MODISalb.nc
-rm -f con/Makefile
+rm -f con/MODISalb.nc.Z
 rm -f con/T*_*.nc
 rm -f con/aerdefb.asc
 rm -f con/clim.deepsoil.grib
@@ -61,8 +63,10 @@ rm -f con/gisst22.2000.daily
 rm -f con/gisst22.2001.daily
 rm -f con/gisst22.2003.daily
 rm -f con/greenfrac_fpar_modis_30s.nc
+rm -f con/greenfrac_fpar_modis_30s.nc.Z
 rm -f con/mdlv1e.asc
 rm -f con/ozone_cams.nc
+rm -f con/ozone_cams.nc.Z
 rm -f con/reanlcld.sh
 rm -f con/sfc.anl.1996050100.ieee
 rm -f con/sfc.anl.1996050200.ieee
@@ -106,7 +110,6 @@ rm -f con/top8m_max.bin
 rm -f con/top8m_slm.bin
 rm -f con/top8m_var.bin
 rm -f con/verlev.asc
-rm -f etc/Makefile
 rm -f etc/bufrblunbl
 rm -f etc/chgdates
 rm -f etc/cosread
@@ -127,15 +130,6 @@ rm -f etc/nt
 rm -f etc/rmpiset
 rm -f etc/scnvrt
 rm -f etc/scnvrt_gfs
-rm -f etc/util_linux_intel/Makefile
-rm -f etc/utils/Makefile
-rm -f etc/utils_gdas/Makefile
-rm -f lib/Makefile
-rm -f lib/modelib/Makefile
-rm -f lib/ncaru/Makefile
-rm -f lib/ncaru/lib/Makefile
-rm -f lib/ncaru/utils/Makefile
-rm -f lib/w3lib_linux_intel/Makefile
 rm -f machine.h
 rm -f seddat_libs
 

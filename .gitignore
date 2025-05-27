@@ -4,7 +4,9 @@
 *.x
 Makefile
 con/MACC.nc
+con/MACC.nc.Z
 con/MODISalb.nc
+con/MODISalb.nc.Z
 con/T*_*.nc
 con/aerdefb.asc
 con/clim.deepsoil.grib
@@ -60,8 +62,10 @@ con/gisst22.2000.daily
 con/gisst22.2001.daily
 con/gisst22.2003.daily
 con/greenfrac_fpar_modis_30s.nc
+con/greenfrac_fpar_modis_30s.nc.Z
 con/mdlv1e.asc
 con/ozone_cams.nc
+con/ozone_cams.nc.Z
 con/reanlcld.sh
 con/sfc.anl.1996050100.ieee
 con/sfc.anl.1996050200.ieee
