@@ -1,10 +1,10 @@
 SHELL=/bin/sh
-AR=ar
+AR=${CMPLR_ROOT}/bin/compiler/llvm-ar
 AS=as
 CP=cp
 RM=rm
 CD=cd
-CC=icc
+CC='icx -std=c90'
 CPP='cpp -traditional-cpp'
 MAKE=make
 MKDIR=mkdir
@@ -15,27 +15,27 @@ FTASS='ln -fs'
 #
 #  Model compiler options (except fcst related)
 #
-F77=ifort
+F77=ifx
 F77_FCST=${F77}
-FORT_FLAGS="-r8 -O2 -convert big_endian -module ../include -mcmodel medium -I\${NETCDF}/include -L\${NETCDF}/lib -lnetcdff -lnetcdf -fp-model source"
+FORT_FLAGS="-r8 -O3 -convert big_endian -module ../include -mcmodel medium -I\${NETCDF_DIR}/include -L\${NETCDF_DIR}/lib -lnetcdff -lnetcdf -fp-model source -xHost -traceback -qmkl=sequential -ipo"
 LOAD_FLAGS="${FORT_FLAGS}"
 EXTRA_LIBS=
 #
 #  UTILS is normally same as the model options
 #
-UTIL_F77=ifort
-UTIL_FORT_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium -fp-model source"
-UTIL_LOAD_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium -fp-model source"
+UTIL_F77=ifx
+UTIL_FORT_FLAGS="-r8 -O3 -convert big_endian -mcmodel medium -fp-model source"
+UTIL_LOAD_FLAGS="-r8 -O3 -convert big_endian -mcmodel medium -fp-model source"
 #
-W3LIB_F77=ifort
+W3LIB_F77=ifx
 W3LIB_FORT_FLAGS="-convert big_endian -assume byterecl -fp-model source"
 W3LIB_LOAD_FLAGS="-convert big_endian -assume byterecl -fp-model source"
 #
 FFT99M=fft99m.o
 #
-BFLIB_F77=ifort
-BFLIB_FORT_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium -fp-model source"
-BFLIB_LOAD_FLAGS="-r8 -O2 -convert big_endian -mcmodel medium -fp-model source"
+BFLIB_F77=ifx
+BFLIB_FORT_FLAGS="-r8 -O3 -convert big_endian -mcmodel medium -fp-model source"
+BFLIB_LOAD_FLAGS="-r8 -O3 -convert big_endian -mcmodel medium -fp-model source"
 #
 EXTRA_LIBS=
 #
